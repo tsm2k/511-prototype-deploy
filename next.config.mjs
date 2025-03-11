@@ -17,7 +17,10 @@ const nextConfig = {
     unoptimized: true,
   },
   output: 'export',  // Enable static exports
-  basePath: '/511-prototype-deploy', // Set the base path for GitHub Pages
+  // GitHub Pages uses the repository name as the base path
+  basePath: '/511-prototype-deploy',
+  // This ensures assets are correctly referenced
+  assetPrefix: '/511-prototype-deploy',
   experimental: {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
