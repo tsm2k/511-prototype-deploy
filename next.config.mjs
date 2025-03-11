@@ -17,7 +17,7 @@ const nextConfig = {
     unoptimized: true,
   },
   output: 'export',  // Enable static exports
-  basePath: '/TrafficViz', // Set the base path for GitHub Pages
+  basePath: '/511-prototype-deploy', // Set the base path for GitHub Pages
   experimental: {
     webpackBuildWorker: true,
     parallelServerBuildTraces: true,
