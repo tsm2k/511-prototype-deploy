@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
-import { Checkbox } from "../ui/checkbox"
-import { Label } from "../ui/label"
-import { Button } from "../ui/button"
-import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover';
-import { Command, CommandList, CommandGroup, CommandItem } from '../ui/command';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Command, CommandList, CommandGroup, CommandItem } from '@/components/ui/command';
 import { Check } from 'lucide-react';
-import { InfoTooltip } from "../ui/info-tooltip";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 // Sort car events in the specified order
 const carEvents = [

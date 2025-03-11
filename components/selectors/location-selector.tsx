@@ -1,13 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
-import { Label } from "../ui/label"
-import { Slider } from "../ui/slider"
-import { Button } from "../ui/button"
-import { Checkbox } from "../ui/checkbox"
-import { Input } from "../ui/input"
-import { Badge } from "../ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { Pencil, Circle } from "lucide-react"
 
 const roads = [

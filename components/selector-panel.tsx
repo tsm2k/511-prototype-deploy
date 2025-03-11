@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2 } from "lucide-react"
-import { Input } from "./ui/input"
-import { Button } from "./ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
-import { LocationSelector } from "./selectors/location-selector"
-import { TimeframeSelector } from "./selectors/timeframe-selector"
-import { DatasetSelector } from "./selectors/dataset-selector"
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LocationSelector } from "@/components/selectors/location-selector"
+import { TimeframeSelector } from "@/components/selectors/timeframe-selector"
+import { DatasetSelector } from "@/components/selectors/dataset-selector"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Simple Spinner component
 const Spinner = ({ className }: { className?: string }) => (
