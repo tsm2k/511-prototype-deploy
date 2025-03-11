@@ -170,11 +170,9 @@ export function DatasetSelector({
   const toggleAllCarEvents = () => {
     const newCarEvents = selectedCarEvents.length === carEvents.length ? [] : [...carEvents];
     
-    if (onSelectedCarEventsChange) {
-      onSelectedCarEventsChange?.(newCarEvents);
-    } else if (setSelectedCarEvents) {
-      setSelectedCarEvents?.(newCarEvents);
-    }
+    // Always update both the state and call the callback if available
+    setSelectedCarEvents?.(newCarEvents);
+    onSelectedCarEventsChange?.(newCarEvents);
   }
 
   const toggleAllEventStatuses = () => {
@@ -182,11 +180,9 @@ export function DatasetSelector({
     
     setLocalSelectedEventStatuses(newEventStatuses);
     
-    if (onSelectedEventStatusesChange) {
-      onSelectedEventStatusesChange(newEventStatuses);
-    } else if (setSelectedEventStatuses) {
-      setSelectedEventStatuses?.(newEventStatuses);
-    }
+    // Always update both the state and call the callback if available
+    setSelectedEventStatuses?.(newEventStatuses);
+    onSelectedEventStatusesChange?.(newEventStatuses);
   }
 
   // Lane blockage helper functions
@@ -195,10 +191,14 @@ export function DatasetSelector({
       ? selectedLaneBlockages.blockType.filter(type => type !== blockType)
       : [...selectedLaneBlockages.blockType, blockType];
     
-    setSelectedLaneBlockages?.({
+    const updatedLaneBlockages = {
       ...selectedLaneBlockages,
       blockType: updatedBlockTypes
-    });
+    };
+    
+    // Update both state and call callback
+    setSelectedLaneBlockages?.(updatedLaneBlockages);
+    onSelectedLaneBlockagesChange?.(updatedLaneBlockages);
   };
   
   const toggleAllLanesDirection = (direction: string) => {
@@ -206,10 +206,14 @@ export function DatasetSelector({
       ? selectedLaneBlockages.allLanesAffected.filter(dir => dir !== direction)
       : [...selectedLaneBlockages.allLanesAffected, direction];
     
-    setSelectedLaneBlockages?.({
+    const updatedLaneBlockages = {
       ...selectedLaneBlockages,
       allLanesAffected: updatedAllLanesAffected
-    });
+    };
+    
+    // Update both state and call callback
+    setSelectedLaneBlockages?.(updatedLaneBlockages);
+    onSelectedLaneBlockagesChange?.(updatedLaneBlockages);
   };
   
   const toggleLaneNumber = (direction: 'positive' | 'negative', laneNumber: number) => {
@@ -218,13 +222,17 @@ export function DatasetSelector({
       ? currentLanes.filter(lane => lane !== laneNumber)
       : [...currentLanes, laneNumber];
     
-    setSelectedLaneBlockages?.({
+    const updatedLaneBlockages = {
       ...selectedLaneBlockages,
       lanesAffected: {
         ...selectedLaneBlockages.lanesAffected,
         [direction]: updatedLanes
       }
-    });
+    };
+    
+    // Update both state and call callback
+    setSelectedLaneBlockages?.(updatedLaneBlockages);
+    onSelectedLaneBlockagesChange?.(updatedLaneBlockages);
   };
   
   const toggleAdditionalFilter = (filterName: keyof typeof selectedLaneBlockages.additionalFilters, value: boolean) => {
@@ -233,13 +241,17 @@ export function DatasetSelector({
       ? currentValues.filter(val => val !== value)
       : [...currentValues, value];
     
-    setSelectedLaneBlockages?.({
+    const updatedLaneBlockages = {
       ...selectedLaneBlockages,
       additionalFilters: {
         ...selectedLaneBlockages.additionalFilters,
         [filterName]: updatedValues
       }
-    });
+    };
+    
+    // Update both state and call callback
+    setSelectedLaneBlockages?.(updatedLaneBlockages);
+    onSelectedLaneBlockagesChange?.(updatedLaneBlockages);
   };
 
   const toggleSelectAll = (options: string[], selected: string[], setSelected: (options: string[]) => void) => {
@@ -358,11 +370,13 @@ export function DatasetSelector({
                   id={`event-${event}`}
                   checked={selectedCarEvents.includes(event)}
                   onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedCarEvents?.([...selectedCarEvents, event])
-                    } else {
-                      setSelectedCarEvents?.(selectedCarEvents.filter((e) => e !== event))
-                    }
+                    const updatedEvents = checked 
+                      ? [...selectedCarEvents, event]
+                      : selectedCarEvents.filter((e) => e !== event);
+                    
+                    // Always update both the state and call the callback if available
+                    setSelectedCarEvents?.(updatedEvents);
+                    onSelectedCarEventsChange?.(updatedEvents);
                   }}
                 />
                 <Label htmlFor={`event-${event}`}>{event}</Label>
@@ -391,11 +405,16 @@ export function DatasetSelector({
                   id={`status-${status}`}
                   checked={localSelectedEventStatuses.includes(status)}
                   onCheckedChange={(checked) => {
-                    if (checked) {
-                      setLocalSelectedEventStatuses([...localSelectedEventStatuses, status])
-                    } else {
-                      setLocalSelectedEventStatuses(localSelectedEventStatuses.filter((s) => s !== status))
-                    }
+                    const updatedStatuses = checked 
+                      ? [...localSelectedEventStatuses, status]
+                      : localSelectedEventStatuses.filter((s) => s !== status);
+                    
+                    // Update local state
+                    setLocalSelectedEventStatuses(updatedStatuses);
+                    
+                    // Also update parent state and call callback if available
+                    setSelectedEventStatuses?.(updatedStatuses);
+                    onSelectedEventStatusesChange?.(updatedStatuses);
                   }}
                 />
                 <Label htmlFor={`status-${status}`}>{status}</Label>
