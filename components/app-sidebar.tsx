@@ -2,7 +2,7 @@
 
 import { Map, BarChart3, Database, Settings, BookOpen, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "./ui/button"
-import { cn } from "../../lib/utils"
+import { cn } from "../lib/utils"
 import { useState } from "react"
 
 export function AppSidebar() {

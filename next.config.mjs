@@ -20,12 +20,7 @@ const nextConfig = {
   // GitHub Pages uses the repository name as the base path
   basePath: '/511-prototype-deploy',
   // This ensures assets are correctly referenced
-  assetPrefix: '/511-prototype-deploy',
-  experimental: {
-    webpackBuildWorker: true,
-    parallelServerBuildTraces: true,
-    parallelServerCompiles: true,
-  },
+  assetPrefix: '/511-prototype-deploy'
 }
 
 mergeConfig(nextConfig, userConfig)
