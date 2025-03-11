@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
+import { Calendar as CalendarComponent } from "../ui/calendar"
+import { Checkbox } from "../ui/checkbox"
+import { Label } from "../ui/label"
+import { Badge } from "../ui/badge"
+import { Button } from "../ui/button"
 
 const months = [
   "January",
