@@ -35,12 +35,12 @@ jobs:
         run: npm run build --legacy-peer-deps
       - name: List output directory
         run: ls -la
-      - name: List out directory
-        run: ls -la out
+      - name: List dist directory
+        run: ls -la dist
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./out
+          path: ./dist
 
   deploy:
     environment:

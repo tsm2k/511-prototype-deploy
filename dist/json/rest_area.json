@@ -1,0 +1,1028 @@
+{
+    "type": "FeatureCollection",
+    "version": "1.0.0",
+    "features": [
+        {
+            "id": "317",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.776767117,
+                    38.585163004
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Henryville",
+                    "route": "I-65",
+                    "address": "21505 N Ih 65 , Henryville, IN 47126",
+                    "capacity": "58",
+                    "exit_nbr": "22",
+                    "site_nbr": "317",
+                    "tpims_id": "IN00065IS0002200N00000317",
+                    "zip_code": "47126",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": 0
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-065-022-2",
+                "site_route": "I-65",
+                "county_name": "Clark",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Henryville Welcome Center & Rest Area Northbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 22.2,
+                "district_name": "SEYMOUR",
+                "site_location": "rest area",
+                "site_area_label": "NB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Henryville",
+                "site_area_data_status": "message",
+                "site_area_description": "Henryville Welcome Center & Rest Area Northbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "316",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.780877776,
+                    38.585864383
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Henryville",
+                    "route": "I-65",
+                    "address": "I-65 Henryville, IN 47126",
+                    "capacity": "58",
+                    "exit_nbr": "22",
+                    "site_nbr": "316",
+                    "tpims_id": "IN00065IS0002200S00000316",
+                    "zip_code": "47126",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": 4
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-065-022-3",
+                "site_route": "I-65",
+                "county_name": "Clark",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Henryville Rest Area Southbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 22.3,
+                "district_name": "SEYMOUR",
+                "site_location": "rest area",
+                "site_area_label": "SB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Henryville",
+                "site_area_data_status": "message",
+                "site_area_description": "Henryville Rest Area Southbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "315",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.952093808,
+                    39.260151464
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Taylorsville",
+                    "route": "I-65",
+                    "address": "I-65, Columbus, IN 47201",
+                    "capacity": "36",
+                    "exit_nbr": "73",
+                    "site_nbr": "315",
+                    "tpims_id": "IN00065IS0007300N00000315",
+                    "zip_code": "47201",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": 3
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-065-072-4",
+                "site_route": "I-65",
+                "county_name": "Bartholomew",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Taylorsville Rest Area Northbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 72.4,
+                "district_name": "SEYMOUR",
+                "site_location": null,
+                "site_area_label": "NB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Taylorsville",
+                "site_area_data_status": "message",
+                "site_area_description": "Taylorsville Rest Area Northbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "314",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.956882448,
+                    39.276708888
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Taylorsville",
+                    "route": "I-65",
+                    "address": "I-65, Columbus, IN 47201",
+                    "capacity": "36",
+                    "exit_nbr": "73",
+                    "site_nbr": "314",
+                    "tpims_id": "IN00065IS0007400S00000314",
+                    "zip_code": "47201",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "33",
+                    "spaces_available": 33
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-065-073-5",
+                "site_route": "I-65",
+                "county_name": "Bartholomew",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Taylorsville Rest Area Southbound<br>truck parking availability:<br>33 spaces</p></div>",
+                "mile_marker": 73.5,
+                "district_name": "SEYMOUR",
+                "site_location": null,
+                "site_area_label": "SB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Taylorsville",
+                "site_area_data_status": "message",
+                "site_area_description": "Taylorsville Rest Area Southbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "313",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.538749227,
+                    40.15783944
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Lebanon",
+                    "route": "I-65",
+                    "address": "I-65 Thorntown, IN 46071",
+                    "capacity": "21",
+                    "exit_nbr": "148",
+                    "site_nbr": "313",
+                    "tpims_id": "IN00065IS0014900N00000313",
+                    "zip_code": "46071",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": " X ",
+                    "spaces_available": 11
+                },
+                "images": {
+                },
+                "amenities": [
+                    "truck parking facility"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-065-148-3",
+                "site_route": "I-65",
+                "county_name": "Boone",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Lebanon Rest Area Northbound<br>truck parking availability:<br> X  spaces</p></div>",
+                "mile_marker": 148.3,
+                "district_name": "CRAWFORDSVILLE",
+                "site_location": null,
+                "site_area_label": "NB-rest area",
+                "site_area_status": "closed",
+                "site_description": null,
+                "site_area_location": "Lebanon",
+                "site_area_data_status": "alt_message",
+                "site_area_description": "Lebanon Rest Area Northbound",
+                "site_area_status_note": "construction"
+            }
+        },
+        {
+            "id": "312",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.552221567,
+                    40.172183614
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Lebanon",
+                    "route": "I-65",
+                    "address": "I-65 Thorntown, IN 46071",
+                    "capacity": "20",
+                    "exit_nbr": "149",
+                    "site_nbr": "312",
+                    "tpims_id": "IN00065IS0014900S00000312",
+                    "zip_code": "46071",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": " X ",
+                    "spaces_available": 10
+                },
+                "images": {
+                },
+                "amenities": [
+                    "truck parking facility"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-065-149-6",
+                "site_route": "I-65",
+                "county_name": "Boone",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Lebanon Rest Area Southbound<br>truck parking availability:<br> X  spaces</p></div>",
+                "mile_marker": 149.6,
+                "district_name": "CRAWFORDSVILLE",
+                "site_location": null,
+                "site_area_label": "SB-rest area",
+                "site_area_status": "closed",
+                "site_description": null,
+                "site_area_location": "Lebanon",
+                "site_area_data_status": "alt_message",
+                "site_area_description": "Lebanon Rest Area Southbound",
+                "site_area_status_note": "construction"
+            }
+        },
+        {
+            "id": "311",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.062767082,
+                    40.699246134
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Wolcott",
+                    "route": "I-65",
+                    "address": "I-65, Wolcott, IN 47995",
+                    "capacity": "13",
+                    "exit_nbr": "196",
+                    "site_nbr": "311",
+                    "tpims_id": "IN00065IS0019600N00000311",
+                    "zip_code": "47995",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": " X ",
+                    "spaces_available": 2
+                },
+                "images": {
+                },
+                "amenities": {
+                },
+                "time_zone": "EST5EDT",
+                "site_label": "1-065-196-0",
+                "site_route": "I-65",
+                "county_name": "White",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Wolcott Rest Area Northbound<br>truck parking availability:<br> X  spaces</p></div>",
+                "mile_marker": 196.0,
+                "district_name": "CRAWFORDSVILLE",
+                "site_location": null,
+                "site_area_label": "NB-rest area",
+                "site_area_status": "closed",
+                "site_description": null,
+                "site_area_location": "Wolcott",
+                "site_area_data_status": "alt_message",
+                "site_area_description": "Wolcott Rest Area Northbound",
+                "site_area_status_note": "rest area is being permanently closed"
+            }
+        },
+        {
+            "id": "310",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.06463879,
+                    40.698401366
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Wolcott",
+                    "route": "I-65",
+                    "address": "I-65, Wolcott, IN 47995",
+                    "capacity": "13",
+                    "exit_nbr": "196",
+                    "site_nbr": "310",
+                    "tpims_id": "IN00065IS0019600S00000310",
+                    "zip_code": "47995",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": " X ",
+                    "spaces_available": 7
+                },
+                "images": {
+                },
+                "amenities": {
+                },
+                "time_zone": "EST5EDT",
+                "site_label": "1-065-196-0",
+                "site_route": "I-65",
+                "county_name": "White",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Wolcott Rest Area Southbound<br>truck parking availability:<br> X  spaces</p></div>",
+                "mile_marker": 196.0,
+                "district_name": "CRAWFORDSVILLE",
+                "site_location": null,
+                "site_area_label": "SB-rest area",
+                "site_area_status": "closed",
+                "site_description": null,
+                "site_area_location": "Wolcott",
+                "site_area_data_status": "alt_message",
+                "site_area_description": "Wolcott Rest Area Southbound",
+                "site_area_status_note": "rest area is being permanently closed"
+            }
+        },
+        {
+            "id": "308",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.27101905,
+                    41.165269753
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Roselawn",
+                    "route": "I-65",
+                    "address": "5P8H+3J Roselawn, Lincoln Township, IN",
+                    "capacity": "75",
+                    "exit_nbr": "231",
+                    "site_nbr": "308",
+                    "tpims_id": "IN00065IS0023100N00000308",
+                    "zip_code": "46310",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "12",
+                    "spaces_available": 12
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "CST6CDT",
+                "site_label": "1-065-231-0",
+                "site_route": "I-65",
+                "county_name": "Jasper",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Roselawn Rest Area Northbound<br>truck parking availability:<br>12 spaces</p></div>",
+                "mile_marker": 231.0,
+                "district_name": "LAPORTE",
+                "site_location": null,
+                "site_area_label": "NB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Roselawn",
+                "site_area_data_status": "message",
+                "site_area_description": "Roselawn Rest Area Northbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "309",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.274868464,
+                    41.16664999
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Roselawn",
+                    "route": "I-65",
+                    "address": "5P8G+M3 Roselawn, Lincoln Township, IN",
+                    "capacity": "150",
+                    "exit_nbr": "231",
+                    "site_nbr": "309",
+                    "tpims_id": "IN00065IS0023100S00000309",
+                    "zip_code": "46310",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "113",
+                    "spaces_available": 113
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "CST6CDT",
+                "site_label": "1-065-231-0",
+                "site_route": "I-65",
+                "county_name": "Jasper",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Roselawn Rest Area Southbound<br>truck parking availability:<br>113 spaces</p></div>",
+                "mile_marker": 231.0,
+                "district_name": "LAPORTE",
+                "site_location": null,
+                "site_area_label": "SB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Roselawn",
+                "site_area_data_status": "message",
+                "site_area_description": "Roselawn Rest Area Southbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "318",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.55759889,
+                    40.354251733
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Pipe Creek",
+                    "route": "I-69",
+                    "address": "IN 69, Gaston, IN 47342",
+                    "capacity": "78",
+                    "exit_nbr": "250",
+                    "site_nbr": "318",
+                    "tpims_id": "IN00069IS0025000N00000318",
+                    "zip_code": "47342",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": -6
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-069-250-0",
+                "site_route": "I-69",
+                "county_name": "Delaware",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Pipe Creek Rest Area Northbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 250.0,
+                "district_name": "GREENFIELD",
+                "site_location": null,
+                "site_area_label": "NB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Pipe Creek",
+                "site_area_data_status": "message",
+                "site_area_description": "Pipe Creek Rest Area Northbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "319",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.559990327,
+                    40.356907243
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Pipe Creek",
+                    "route": "I-69",
+                    "address": "IN 69, Gaston, IN 47342",
+                    "capacity": "78",
+                    "exit_nbr": "250",
+                    "site_nbr": "319",
+                    "tpims_id": "IN00069IS0025000S00000319",
+                    "zip_code": "47342",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": -8
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-069-250-0",
+                "site_route": "I-69",
+                "county_name": "Delaware",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Pipe Creek Rest Area Southbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 250.0,
+                "district_name": "GREENFIELD",
+                "site_location": null,
+                "site_area_label": "SB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Pipe Creek",
+                "site_area_data_status": "message",
+                "site_area_description": "Pipe Creek Rest Area Southbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "320",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.086291872,
+                    41.296270404
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Auburn",
+                    "route": "I-69",
+                    "address": "2218 Co Rd 62, Auburn, IN 46706",
+                    "capacity": "83",
+                    "exit_nbr": "324",
+                    "site_nbr": "320",
+                    "tpims_id": "IN00069IS0032400N00000320",
+                    "zip_code": "46706",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": -4
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-069-324-0",
+                "site_route": "I-69",
+                "county_name": "Dekalb",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Auburn Rest Area Northbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 324.0,
+                "district_name": "FORT WAYNE",
+                "site_location": null,
+                "site_area_label": "NB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Auburn",
+                "site_area_data_status": "message",
+                "site_area_description": "Auburn Rest Area Northbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "300",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.500208865,
+                    39.441700551
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Clear Creek",
+                    "route": "I-70",
+                    "address": "5594 W 21st Rd, West Terre Haute, IN 47885",
+                    "capacity": "48",
+                    "exit_nbr": "1",
+                    "site_nbr": "300",
+                    "tpims_id": "IN00070IS0000100E00000300",
+                    "zip_code": "47885",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": " X",
+                    "spaces_available": 24
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-070-001-0",
+                "site_route": "I-70",
+                "county_name": "Vigo",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Clear Creek Welcome Center & Rest Area<br>truck parking availability:<br> X spaces</p></div>",
+                "mile_marker": 1.0,
+                "district_name": "CRAWFORDSVILLE",
+                "site_location": null,
+                "site_area_label": "EB-rest area",
+                "site_area_status": "closed",
+                "site_description": null,
+                "site_area_location": "Clear Creek",
+                "site_area_data_status": "alt_message",
+                "site_area_description": "Clear Creek Welcome Center & Rest Area",
+                "site_area_status_note": "construction"
+            }
+        },
+        {
+            "id": "302",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.396668737,
+                    39.65170234
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Plainfield",
+                    "route": "I-70",
+                    "address": "Interstate 70, Mile Marker 64, Eastbound, Plainfield, IN 46168",
+                    "capacity": "30",
+                    "exit_nbr": "64",
+                    "site_nbr": "302",
+                    "tpims_id": "IN00070IS0006400E00000302",
+                    "zip_code": "46168",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "11",
+                    "spaces_available": 11
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-070-064-0",
+                "site_route": "I-70",
+                "county_name": "Hendricks",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Plainfield Rest Area Eastbound<br>truck parking availability:<br>11 spaces</p></div>",
+                "mile_marker": 64.0,
+                "district_name": "CRAWFORDSVILLE",
+                "site_location": null,
+                "site_area_label": "EB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Plainfield",
+                "site_area_data_status": "message",
+                "site_area_description": "Plainfield Rest Area Eastbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "301",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.400529232,
+                    39.654081707
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Plainfield",
+                    "route": "I-70",
+                    "address": "Interstate 70, Mile Marker 64, Westbound, Plainfield, IN 46168",
+                    "capacity": "30",
+                    "exit_nbr": "64",
+                    "site_nbr": "301",
+                    "tpims_id": "IN00070IS0006400W00000301",
+                    "zip_code": "46168",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": -10
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-070-064-0",
+                "site_route": "I-70",
+                "county_name": "Hendricks",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Plainfield Rest Area Westbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 64.0,
+                "district_name": "CRAWFORDSVILLE",
+                "site_location": null,
+                "site_area_label": "WB-rest area",
+                "site_area_status": "open",
+                "site_description": null,
+                "site_area_location": "Plainfield",
+                "site_area_data_status": "message",
+                "site_area_description": "Plainfield Rest Area Westbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "303",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.703861537,
+                    39.824345757
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Greenfield",
+                    "route": "I-70",
+                    "address": "5247 I-70, Greenfield, IN 46140",
+                    "capacity": 194,
+                    "exit_nbr": "107",
+                    "site_nbr": 303,
+                    "tpims_id": "IN00070IS0010700E00000303",
+                    "zip_code": "46140",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": -14
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-070-107-0",
+                "site_route": "I-70",
+                "county_name": "Hancock",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Greenfield Rest Area Eastbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 107.0,
+                "district_name": "GREENFIELD",
+                "site_location": "I-70@107.0",
+                "site_area_label": "EB-rest area",
+                "site_area_status": "open",
+                "site_description": "I-70@107.0 Rest Area",
+                "site_area_location": "Greenfield",
+                "site_area_data_status": "message",
+                "site_area_description": "Greenfield Rest Area Eastbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "304",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.703954533,
+                    39.826564054
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Greenfield",
+                    "route": "I-70",
+                    "address": "I-70 WB MM 108 Greenfield, IN 46140",
+                    "capacity": "99",
+                    "exit_nbr": "107",
+                    "site_nbr": "304",
+                    "tpims_id": "IN00070IS0010700W00000304",
+                    "zip_code": "46140",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "LOW",
+                    "spaces_available": -5
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Family Restroom",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-070-107-0",
+                "site_route": "I-70",
+                "county_name": "Hancock",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Greenfield Rest Area Westbound<br>truck parking availability:<br>LOW spaces</p></div>",
+                "mile_marker": 107.0,
+                "district_name": "GREENFIELD",
+                "site_location": "I-70@107.0",
+                "site_area_label": "WB-rest area",
+                "site_area_status": "open",
+                "site_description": "I-70@107.0 Rest Area",
+                "site_area_location": "Greenfield",
+                "site_area_data_status": "message",
+                "site_area_description": "Greenfield Rest Area Westbound",
+                "site_area_status_note": null
+            }
+        },
+        {
+            "id": "305",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.025918607,
+                    39.860455121
+                ]
+            },
+            "properties": {
+                "state": "IN",
+                "theme": {
+                },
+                "tpims": {
+                    "city": "Greens Fork",
+                    "route": "I-70",
+                    "address": "I-70, Greens Fork, IN 47345",
+                    "capacity": "156",
+                    "exit_nbr": "144",
+                    "site_nbr": "305",
+                    "tpims_id": "IN00070IS0014400W00000305",
+                    "zip_code": "47345",
+                    "last_data": "2025-03-11 03:25:00-04",
+                    "ownership": "PU",
+                    "auto_validate": "true",
+                    "tpims_message": "X",
+                    "spaces_available": 0
+                },
+                "images": {
+                },
+                "amenities": [
+                    "Handicap Accessible",
+                    "Restroom Facilities",
+                    "Vending Machines",
+                    "Picnic Areas"
+                ],
+                "time_zone": "EST5EDT",
+                "site_label": "1-070-143-5",
+                "site_route": "I-70",
+                "county_name": "Wayne",
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">Centerville Welcome Center & Rest Area<br>truck parking availability:<br>X spaces</p></div>",
+                "mile_marker": 143.5,
+                "district_name": "GREENFIELD",
+                "site_location": null,
+                "site_area_label": "WB-rest area",
+                "site_area_status": "open",
+                "site_description": "Centerville",
+                "site_area_location": "Greens Fork",
+                "site_area_data_status": "alt_message",
+                "site_area_description": "Centerville Welcome Center & Rest Area",
+                "site_area_status_note": null
+            }
+        }
+    ],
+    "timestamp": "2025-03-11T03:38:00-04:00"
+}

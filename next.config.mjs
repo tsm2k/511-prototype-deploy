@@ -22,7 +22,9 @@ const nextConfig = {
   // This ensures assets are correctly referenced
   assetPrefix: '/511-prototype-deploy',
   // Transpile dependencies to fix import issues
-  transpilePackages: ['lucide-react']
+  transpilePackages: ['lucide-react'],
+  // Specify the output directory explicitly
+  distDir: 'dist'
 }
 
 mergeConfig(nextConfig, userConfig)

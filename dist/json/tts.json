@@ -1,0 +1,1408 @@
+{
+    "type": "FeatureCollection",
+    "version": "7.0.0",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.385689255,
+                    41.570039228
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-94",
+                "title": "I-94 / 7.4 dms- 1380",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "2",
+                "message2": "7",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 7.4,
+                "asset_type": "tts",
+                "device_nbr": 1380,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">2<br>7<br></p></div>",
+                "device_label": "1-094-007-4-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "tts-1-094-007-4-wb"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.1219,
+                    39.92422
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 32.7 dms- 1521",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "4",
+                "message2": "12",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 32.7,
+                "asset_type": "tts",
+                "device_nbr": 1521,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">4<br>12<br></p></div>",
+                "device_label": "1-465-032-7-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-465-032-7-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.1919,
+                    39.81894
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 116.9 dms- 1522",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "13",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 116.9,
+                "asset_type": "tts",
+                "device_nbr": 1522,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>13<br></p></div>",
+                "device_label": "1-065-116-9-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-116-9-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.25094,
+                    39.72469
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-70",
+                "title": "I-70 / 74.1 dms- 1523",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "7",
+                "message2": "15",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 74.1,
+                "asset_type": "tts",
+                "device_nbr": 1523,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">7<br>15<br></p></div>",
+                "device_label": "1-070-074-1-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-070-074-0-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.0736,
+                    39.80399996
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-70",
+                "title": "I-70 / 87.0 dms- 1524",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "4",
+                "message2": "15",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 87.0,
+                "asset_type": "tts",
+                "device_nbr": 1524,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">4<br>15<br></p></div>",
+                "device_label": "1-070-087-0-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "tts-1-070-087-0-WB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.95973,
+                    39.97595022
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-69",
+                "title": "I-69 / 208.0 dms- 1525",
+                "ontime": "2025-03-11T03:36:06-04:00",
+                "offtime": "2025-03-11T03:51:06-04:00",
+                "message1": "5",
+                "message2": "8",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 208.0,
+                "asset_type": "tts",
+                "device_nbr": 1525,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>8<br></p></div>",
+                "device_label": "1-069-208-0-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-069-208-0-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.07389,
+                    39.62624
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 100.0 dms- 1542",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "6",
+                "message2": "10",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 100.0,
+                "asset_type": "tts",
+                "device_nbr": 1542,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">6<br>10<br></p></div>",
+                "device_label": "1-065-100-0-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-100-0-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.1376,
+                    39.74175
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 109.4 dms- 1543",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "3",
+                "message2": "10",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 109.4,
+                "asset_type": "tts",
+                "device_nbr": 1543,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">3<br>10<br></p></div>",
+                "device_label": "1-065-109-4-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-109-4-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.24333,
+                    39.69272
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 7.6 dms- 1545",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "8",
+                "message2": "13",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 7.6,
+                "asset_type": "tts",
+                "device_nbr": 1545,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">8<br>13<br></p></div>",
+                "device_label": "1-465-007-6-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-465-007-3-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.03105,
+                    39.8194499
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 42.3 dms- 1547",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "6",
+                "message2": "11",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 42.3,
+                "asset_type": "tts",
+                "device_nbr": 1547,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">6<br>11<br></p></div>",
+                "device_label": "1-465-042-3-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-465-042-3-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.06371,
+                    39.70687
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 50.8 dms- 1548",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "7",
+                "message2": "14",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 50.8,
+                "asset_type": "tts",
+                "device_nbr": 1548,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">7<br>14<br></p></div>",
+                "device_label": "1-465-050-8-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-465-050-8-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.13216,
+                    39.78759
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-70",
+                "title": "I-70 / 83.6 dms- 1549",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "18",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 83.6,
+                "asset_type": "tts",
+                "device_nbr": 1549,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>18<br></p></div>",
+                "device_label": "1-070-083-6-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-070-083-6-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.04953,
+                    39.720869
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 49.6 dms- 1550",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "4",
+                "message2": "13",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 49.6,
+                "asset_type": "tts",
+                "device_nbr": 1550,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">4<br>13<br></p></div>",
+                "device_label": "1-465-049-6-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-465-049-6-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.02902,
+                    39.766489
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 46.1 dms- 1551",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "10",
+                "message2": "16",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 46.1,
+                "asset_type": "tts",
+                "device_nbr": 1551,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">10<br>16<br></p></div>",
+                "device_label": "1-465-046-1-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-465-046-1-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.21122177,
+                    41.59705663
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-94",
+                "title": "I-94 / 17.0 dms- 1560",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "15",
+                "message2": "",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 17.0,
+                "asset_type": "tts",
+                "device_nbr": 1560,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">15<br><br></p></div>",
+                "device_label": "1-094-017-0-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "tts-1-094-016-9-WB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.27323628,
+                    41.57455319
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-94",
+                "title": "I-94 / 13.5 dms- 1561",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "8",
+                "message2": "12",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 13.5,
+                "asset_type": "tts",
+                "device_nbr": 1561,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">8<br>12<br></p></div>",
+                "device_label": "1-094-013-5-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "1-094-013-3-WB-tts"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.50734551,
+                    41.5738346
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-94",
+                "title": "I-94 / 1.0 dms- 1562",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "4",
+                "message2": "10",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 1.0,
+                "asset_type": "tts",
+                "device_nbr": 1562,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">4<br>10<br></p></div>",
+                "device_label": "1-094-001-0-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-094-001-0-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.39423323,
+                    41.56956864
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-94",
+                "title": "I-94 / 6.9 dms- 1563",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "4",
+                "message2": "8",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 6.9,
+                "asset_type": "tts",
+                "device_nbr": 1563,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">4<br>8<br></p></div>",
+                "device_label": "1-094-006-9-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-094-006-9-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.31095334,
+                    41.53526871
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 257.3 dms- 1564",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "13",
+                "message2": "",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 257.3,
+                "asset_type": "tts",
+                "device_nbr": 1564,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">13<br><br></p></div>",
+                "device_label": "1-065-257-3-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-257-3-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.37122,
+                    39.66762
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-70",
+                "title": "I-70 / 66.3 dms- 1577",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "23",
+                "message2": "25",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 66.3,
+                "asset_type": "tts",
+                "device_nbr": 1577,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">23<br>25<br></p></div>",
+                "device_label": "1-070-066-3-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-070-066-3-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.07397,
+                    39.6511
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 101.8 dms- 1578",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "21",
+                "message2": "24",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 101.8,
+                "asset_type": "tts",
+                "device_nbr": 1578,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">21<br>24<br></p></div>",
+                "device_label": "1-065-101-8-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-065-101-8-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.96407975,
+                    39.8046
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-70",
+                "title": "I-70 / 93.1 dms- 1579",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "22",
+                "message2": "24",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 93.1,
+                "asset_type": "tts",
+                "device_nbr": 1579,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">22<br>24<br></p></div>",
+                "device_label": "1-070-093-1-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "tts-1-070-093-1-WB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.26550571,
+                    39.85334917
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 122.1 dms- 1580",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "10",
+                "message2": "17",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 122.1,
+                "asset_type": "tts",
+                "device_nbr": 1580,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">10<br>17<br></p></div>",
+                "device_label": "1-065-122-1-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-122-1-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.32925,
+                    39.91863
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 127.8 dms- 1581",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "23",
+                "message2": "24",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 127.8,
+                "asset_type": "tts",
+                "device_nbr": 1581,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">23<br>24<br></p></div>",
+                "device_label": "1-065-127-8-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-127-8-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.12131824,
+                    39.71617887
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 107.2 dms- 1582",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "3",
+                "message2": "16",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 107.2,
+                "asset_type": "tts",
+                "device_nbr": 1582,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">3<br>16<br></p></div>",
+                "device_label": "1-065-107-2-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-065-107-2-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.38316,
+                    39.97094
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 132.4 dms- 1643",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "27",
+                "message2": "27",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 132.4,
+                "asset_type": "tts",
+                "device_nbr": 1643,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">27<br>27<br></p></div>",
+                "device_label": "1-065-132-4-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-132-4-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -85.9712,
+                    39.80347
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-70",
+                "title": "I-70 / 92.8 dms- 1648",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "26",
+                "message2": "26",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 92.8,
+                "asset_type": "tts",
+                "device_nbr": 1648,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">26<br>26<br></p></div>",
+                "device_label": "1-070-092-8-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "tts-1-070-092-8-WB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.26867,
+                    39.87928
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 21.0 dms- 1649",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "4",
+                "message2": "10",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 21.0,
+                "asset_type": "tts",
+                "device_nbr": 1649,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">4<br>10<br></p></div>",
+                "device_label": "1-465-021-0-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-465-021-0-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.07596,
+                    39.90919
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 35.4 dms- 1650",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "11",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 35.4,
+                "asset_type": "tts",
+                "device_nbr": 1650,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>11<br></p></div>",
+                "device_label": "1-465-035-4-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "tts-1-465-035-4-WB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.04765,
+                    39.872339
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 38.5 dms- 1651",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "16",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 38.5,
+                "asset_type": "tts",
+                "device_nbr": 1651,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>16<br></p></div>",
+                "device_label": "1-465-038-5-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-465-038-5-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.13316,
+                    40.05307
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "US 31",
+                "title": "US 31 / 132.9 dms- 1652",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "4",
+                "message2": "10",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 132.9,
+                "asset_type": "tts",
+                "device_nbr": 1652,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">4<br>10<br></p></div>",
+                "device_label": "2-031-132-9-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-2-031-132-9-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.0358,
+                    39.83284
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 41.4 dms- 1653",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "11",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 41.4,
+                "asset_type": "tts",
+                "device_nbr": 1653,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>11<br></p></div>",
+                "device_label": "1-465-041-4-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-465-041-4-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.25251007,
+                    39.92595009
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 25.6 dms- 1657",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "12",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 25.6,
+                "asset_type": "tts",
+                "device_nbr": 1657,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>12<br></p></div>",
+                "device_label": "1-465-025-6-eb-_-tts-1",
+                "travel_direction": "eb"
+            },
+            "idpropertyname": "tts-1-465-025-6-EB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.1575,
+                    39.96806
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "US 31",
+                "title": "US 31 / 126.0 dms- 1658",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "6",
+                "message2": "10",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 126.0,
+                "asset_type": "tts",
+                "device_nbr": 1658,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">6<br>10<br></p></div>",
+                "device_label": "2-031-126-0-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-2-031-126-0-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.320098,
+                    41.369012
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 245.6 dms- 1694",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "6",
+                "message2": "12",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 245.6,
+                "asset_type": "tts",
+                "device_nbr": 1694,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">6<br>12<br></p></div>",
+                "device_label": "1-065-245-6-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-245-6-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -87.31867025,
+                    41.52008535
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 256.2 dms- 1695",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "8",
+                "message2": "14",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 256.2,
+                "asset_type": "tts",
+                "device_nbr": 1695,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">8<br>14<br></p></div>",
+                "device_label": "1-065-256-2-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-256-2-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.103002,
+                    39.68455042
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 104.7 dms- 1699",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "14",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 104.7,
+                "asset_type": "tts",
+                "device_nbr": 1699,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>14<br></p></div>",
+                "device_label": "1-065-104-7-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-065-104-7-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.17542154,
+                    39.81205049
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-65",
+                "title": "I-65 / 115.9 dms- 1700",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "7",
+                "message2": "25",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 115.9,
+                "asset_type": "tts",
+                "device_nbr": 1700,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">7<br>25<br></p></div>",
+                "device_label": "1-065-115-9-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-065-115-9-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.04004755,
+                    39.91231946
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-69",
+                "title": "I-69 / 201.4 dms- 1701",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "8",
+                "message2": "16",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 201.4,
+                "asset_type": "tts",
+                "device_nbr": 1701,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">8<br>16<br></p></div>",
+                "device_label": "1-069-201-4-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-069-201-4-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.19741797,
+                    39.75625199
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-70",
+                "title": "I-70 / 78.0 dms- 1702",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "11",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 78.0,
+                "asset_type": "tts",
+                "device_nbr": 1702,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>11<br></p></div>",
+                "device_label": "1-070-078-0-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "tts-1-070-078-0-WB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.16681258,
+                    39.70118523
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 2.9 dms- 1703",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "6",
+                "message2": "12",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 2.9,
+                "asset_type": "tts",
+                "device_nbr": 1703,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">6<br>12<br></p></div>",
+                "device_label": "1-465-002-9-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "1-465-002-9-wb-_-tts-1"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.26482985,
+                    39.73012487
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 10.5 dms- 1704",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "6",
+                "message2": "10",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 10.5,
+                "asset_type": "tts",
+                "device_nbr": 1704,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">6<br>10<br></p></div>",
+                "device_label": "1-465-010-5-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-465-010-5-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.26420032,
+                    39.73895124
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 11.1 dms- 1705",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "11",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 11.1,
+                "asset_type": "tts",
+                "device_nbr": 1705,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>11<br></p></div>",
+                "device_label": "1-465-011-1-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-465-011-1-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.27495283,
+                    39.80615688
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 15.9 dms- 1706",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "3",
+                "message2": "9",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 15.9,
+                "asset_type": "tts",
+                "device_nbr": 1706,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">3<br>9<br></p></div>",
+                "device_label": "1-465-015-9-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-465-015-8-NB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.27354499,
+                    39.80589323
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 15.9 dms- 1707",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "3",
+                "message2": "9",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 15.9,
+                "asset_type": "tts",
+                "device_nbr": 1707,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">3<br>9<br></p></div>",
+                "device_label": "1-465-015-9-nb-ramp-tts-2",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "tts-1-465-015-8-NB-Ramp"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.27635289,
+                    39.85627569
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 19.3 dms- 1708",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "9",
+                "message2": "15",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 19.3,
+                "asset_type": "tts",
+                "device_nbr": 1708,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">9<br>15<br></p></div>",
+                "device_label": "1-465-019-3-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-465-019-3-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.27017804,
+                    39.90917745
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 23.1 dms- 1709",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "8",
+                "message2": "13",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 23.1,
+                "asset_type": "tts",
+                "device_nbr": 1709,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">8<br>13<br></p></div>",
+                "device_label": "1-465-023-1-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-465-023-1-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.17815946,
+                    39.92718718
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 29.6 dms- 1710",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "5",
+                "message2": "11",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 29.6,
+                "asset_type": "tts",
+                "device_nbr": 1710,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>11<br></p></div>",
+                "device_label": "1-465-029-6-wb-_-tts-1",
+                "travel_direction": "wb"
+            },
+            "idpropertyname": "tts-1-465-029-6-WB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.028816,
+                    39.761985
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-465",
+                "title": "I-465 / 46.4 dms- 1711",
+                "ontime": "2025-03-11T03:36:08-04:00",
+                "offtime": "2025-03-11T03:51:08-04:00",
+                "message1": "6",
+                "message2": "11",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 46.4,
+                "asset_type": "tts",
+                "device_nbr": 1711,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">6<br>11<br></p></div>",
+                "device_label": "1-465-046-4-sb-_-tts-1",
+                "travel_direction": "sb"
+            },
+            "idpropertyname": "tts-1-465-046-4-SB"
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -86.226791299,
+                    39.59450276,
+                    0
+                ]
+            },
+            "properties": {
+                "icon": "tts-icon",
+                "route": "I-69",
+                "title": "I-69 / 155.0 dms- 1762",
+                "ontime": "2025-03-11T03:36:06-04:00",
+                "offtime": "2025-03-11T03:51:06-04:00",
+                "message1": "5",
+                "message2": "7",
+                "message3": "",
+                "priority": 9,
+                "milepoint": 155.0,
+                "asset_type": "tts",
+                "device_nbr": 1762,
+                "description": "<div style=\"background-color:blue; text-align:center; font-family:courier;\"><p style=\"color:#FEFEFE\">5<br>7<br></p></div>",
+                "device_label": "1-069-155-0-nb-_-tts-1",
+                "travel_direction": "nb"
+            },
+            "idpropertyname": "1-069-155-0-nb-_-tts"
+        }
+    ],
+    "timestamp": "2025-03-11T03:38:41-04:00"
+}
