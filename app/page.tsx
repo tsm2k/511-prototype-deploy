@@ -2,11 +2,11 @@
 
 import "leaflet/dist/leaflet.css"
 import { useState } from "react"
-import { AppTopbar } from "@/components/app-topbar"
-import { SelectorPanel } from "@/components/selector-panel"
-import { MapView } from "@/components/map-view"
-import { PlaceholderPage } from "@/components/placeholder-page"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
+import { AppTopbar } from "../components/app-topbar"
+import { SelectorPanel } from "../components/selector-panel"
+import { MapView } from "../components/map-view"
+import { PlaceholderPage } from "../components/placeholder-page"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/ui/resizable"
 
 interface LaneBlockage {
   insideShoulderAffected: boolean
