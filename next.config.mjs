@@ -20,7 +20,9 @@ const nextConfig = {
   // GitHub Pages uses the repository name as the base path
   basePath: '/511-prototype-deploy',
   // This ensures assets are correctly referenced
-  assetPrefix: '/511-prototype-deploy'
+  assetPrefix: '/511-prototype-deploy',
+  // Transpile dependencies to fix import issues
+  transpilePackages: ['lucide-react']
 }
 
 mergeConfig(nextConfig, userConfig)
