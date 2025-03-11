@@ -1,8 +1,8 @@
 "use client"
 
 import { Map, BarChart3, Database, Settings, BookOpen, ChevronLeft, ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Button } from "./ui/button"
+import { cn } from "../../lib/utils"
 import { useState } from "react"
 
 export function AppSidebar() {
