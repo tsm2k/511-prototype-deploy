@@ -37,6 +37,7 @@
     "@radix-ui/react-toggle": "^1.1.1",
     "@radix-ui/react-toggle-group": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.6",
+    "@types/react-datepicker": "^6.2.0",
     "autoprefixer": "^10.4.20",
     "axios": "^1.8.4",
     "class-variance-authority": "^0.7.1",
@@ -52,6 +53,7 @@
     "next": "15.1.0",
     "next-themes": "^0.4.4",
     "react": "^19",
+    "react-datepicker": "^8.2.1",
     "react-day-picker": "8.10.1",
     "react-dom": "^19",
     "react-hook-form": "^7.54.1",
@@ -74,4 +76,5 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
-  }}
+  }
+}

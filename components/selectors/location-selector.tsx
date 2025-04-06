@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Pencil, Circle, AlertCircle } from "lucide-react"
+import { Pencil, Circle, AlertCircle, X } from "lucide-react"
 
 // Import from centralized API service
 import { fetchLocationData, LocationData } from "@/services/api"
@@ -54,6 +54,17 @@ interface RoadSelection {
   mileMarkerRange: MileMarkerRange
 }
 
+// Define the types of location selections
+type LocationSelectionType = "road" | "city" | "district"
+
+// Define the interface for location selections
+interface LocationSelection {
+  type: LocationSelectionType
+  selection: string | string[]
+  mileMarkerRange?: MileMarkerRange // Only for road selections
+  operator?: "AND" | "OR" // Operator to use with the next selection
+}
+
 export interface LocationSelectorProps {
   selectedRoads: string[]
   onSelectedRoadsChange?: (roads: string[]) => void
@@ -72,6 +83,9 @@ export interface LocationSelectorProps {
   roadMileMarkerRanges?: Record<string, MileMarkerRange>
   onRoadMileMarkerRangesChange?: (ranges: Record<string, MileMarkerRange>) => void
   setRoadMileMarkerRanges?: (ranges: Record<string, MileMarkerRange>) => void
+  // New props for selections
+  selections?: LocationSelection[]
+  onSelectionsChange?: (selections: LocationSelection[]) => void
 }
 
 export function LocationSelector({
@@ -90,6 +104,8 @@ export function LocationSelector({
   roadMileMarkerRanges = {},
   onRoadMileMarkerRangesChange,
   setRoadMileMarkerRanges,
+  selections = [],
+  onSelectionsChange,
 }: LocationSelectorProps) {
   const [poiRadius, setPoiRadius] = useState(10)
   // Remove the global mileMarkerRange state as we'll use per-road ranges
@@ -178,8 +194,193 @@ export function LocationSelector({
     onSelectedPointsOfInterestChange?.(updatedPOIs);
   }
 
+
+
+  // Function to remove a selection
+  const removeSelection = (index: number) => {
+    const updatedSelections = [...selections];
+    updatedSelections.splice(index, 1);
+    onSelectionsChange?.(updatedSelections);
+  }
+  
+  // Function to toggle the operator between selections
+  const toggleOperator = (index: number) => {
+    if (index > 0) {
+      const updatedSelections = [...selections];
+      const prevSelection = updatedSelections[index - 1];
+      
+      // Toggle between AND and OR
+      prevSelection.operator = prevSelection.operator === "AND" ? "OR" : "AND";
+      
+      onSelectionsChange?.(updatedSelections);
+    }
+  }
+
+  // Function to get a summary of the current selections
+  const getSummary = useCallback(() => {
+    if (selections.length === 0) {
+      return "No location selected";
+    }
+    return selections.map((selection) => {
+      switch (selection.type) {
+        case "road":
+          if (Array.isArray(selection.selection)) {
+            return `Roads: ${selection.selection.join(", ")}`;
+          } else {
+            const road = selection.selection;
+            const range = selection.mileMarkerRange;
+            return range ? `${road} (MM ${range.min}-${range.max})` : road;
+          }
+        case "city":
+          if (Array.isArray(selection.selection)) {
+            return `Cities: ${selection.selection.join(", ")}`;
+          } else {
+            return `City: ${selection.selection}`;
+          }
+        case "district":
+          if (Array.isArray(selection.selection)) {
+            return `Districts: ${selection.selection.join(", ")}`;
+          } else {
+            return `District: ${selection.selection}`;
+          }
+        default:
+          return "";
+      }
+    }).join(", ");
+  }, [selections]);
+
+  // Function to add road selections
+  const addRoadSelections = () => {
+    if (selectedRoads.length > 0) {
+      const newSelection: LocationSelection = {
+        type: "road",
+        selection: [...selectedRoads],
+        operator: "AND" // Default operator
+      };
+      
+      // Add mile marker ranges if they exist for any of the selected roads
+      const hasRanges = selectedRoads.some(road => roadMileMarkerRanges[road]);
+      if (hasRanges && selectedRoads.length === 1) {
+        const road = selectedRoads[0];
+        if (roadMileMarkerRanges[road]) {
+          newSelection.mileMarkerRange = roadMileMarkerRanges[road];
+        }
+      }
+      
+      onSelectionsChange?.([...selections, newSelection]);
+      
+      // Clear the selected roads after adding
+      setSelectedRoads?.([]);
+      onSelectedRoadsChange?.([]);
+    }
+  }
+
+  // Function to add city selections
+  const addCitySelections = () => {
+    if (selectedLocations.length > 0) {
+      const newSelection: LocationSelection = {
+        type: "city",
+        selection: [...selectedLocations],
+        operator: "AND" // Default operator
+      };
+      
+      onSelectionsChange?.([...selections, newSelection]);
+      
+      // Clear the selected cities after adding
+      setSelectedLocations?.([]);
+      onSelectedLocationsChange?.([]);
+    }
+  }
+
+  // Function to add district selections
+  const addDistrictSelections = () => {
+    if (selectedDistricts.length > 0) {
+      const newSelection: LocationSelection = {
+        type: "district",
+        selection: [...selectedDistricts],
+        operator: "AND" // Default operator
+      };
+      
+      onSelectionsChange?.([...selections, newSelection]);
+      
+      // Clear the selected districts after adding
+      setSelectedDistricts?.([]);
+      onSelectedDistrictsChange?.([]);
+    }
+  }
+
   return (
-    <Tabs defaultValue="road" className="w-full">
+    <div className="w-full space-y-4">
+      {/* Selection Preview */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium">Current Selections</h3>
+        <div className="min-h-[40px] p-2 border rounded-md bg-slate-50">
+          {selections.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No location selections added yet</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {selections.map((selection, index) => {
+                let content = "";
+                
+                switch (selection.type) {
+                  case "road":
+                    if (Array.isArray(selection.selection)) {
+                      content = `Roads: ${selection.selection.join(", ")}`;
+                    } else {
+                      const road = selection.selection;
+                      const range = selection.mileMarkerRange;
+                      content = range ? `${road} (MM ${range.min}-${range.max})` : road;
+                    }
+                    break;
+                  case "city":
+                    if (Array.isArray(selection.selection)) {
+                      content = `Cities: ${selection.selection.join(", ")}`;
+                    } else {
+                      content = `City: ${selection.selection}`;
+                    }
+                    break;
+                  case "district":
+                    if (Array.isArray(selection.selection)) {
+                      content = `Districts: ${selection.selection.join(", ")}`;
+                    } else {
+                      content = `District: ${selection.selection}`;
+                    }
+                    break;
+                }
+                
+                return (
+                  <div key={index} className="flex items-center gap-1">
+                    {index > 0 && (
+                      <button 
+                        onClick={() => toggleOperator(index)}
+                        className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 cursor-pointer"
+                      >
+                        {selections[index - 1]?.operator || "AND"}
+                      </button>
+                    )}
+                    <Badge 
+                      variant="outline" 
+                      className="px-2 py-1 flex items-center gap-1 bg-white"
+                    >
+                      <span>{content}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => removeSelection(index)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Tabs defaultValue="road" className="w-full">
       <TabsList className="flex flex-wrap gap-2 mb-4 bg-transparent p-0">
         <TabsTrigger value="road" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Road</TabsTrigger>
         <TabsTrigger value="city" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">City</TabsTrigger>
@@ -205,6 +406,14 @@ export function LocationSelector({
             />
             <Button variant="outline" onClick={toggleAllRoads} size="sm" disabled={loading}>
               {selectedRoads.length === locationData.route.length ? "Deselect All" : "Select All"}
+            </Button>
+            <Button 
+              onClick={addRoadSelections} 
+              disabled={selectedRoads.length === 0}
+              size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+            >
+              Add Selection
             </Button>
           </div>
 
@@ -406,7 +615,7 @@ export function LocationSelector({
             )}
           </div>
 
-          <div className="flex flex-wrap gap-1 mt-2">
+          {/* <div className="flex flex-wrap gap-1 mt-2">
             {selectedRoads.map((road) => {
               const range = roadMileMarkerRanges[road] || { min: 0, max: 500 };
               return (
@@ -415,7 +624,7 @@ export function LocationSelector({
                 </Badge>
               );
             })}
-          </div>
+          </div> */}
         </div>
       </TabsContent>
 
@@ -436,6 +645,14 @@ export function LocationSelector({
             />
             <Button variant="outline" onClick={toggleAllLocations} size="sm" disabled={loading}>
               {selectedLocations.length === locationData.city.length ? "Deselect All" : "Select All"}
+            </Button>
+            <Button 
+              onClick={addCitySelections} 
+              disabled={selectedLocations.length === 0}
+              size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+            >
+              Add Selection
             </Button>
           </div>
 
@@ -468,13 +685,13 @@ export function LocationSelector({
             )}
           </div>
 
-          <div className="flex flex-wrap gap-1 mt-2">
+          {/* <div className="flex flex-wrap gap-1 mt-2">
             {selectedLocations.map((location) => (
               <Badge key={location} variant="secondary" className="text-xs">
                 {location}
               </Badge>
             ))}
-          </div>
+          </div> */}
         </div>
       </TabsContent>
 
@@ -495,6 +712,14 @@ export function LocationSelector({
             />
             <Button variant="outline" onClick={toggleAllDistricts} size="sm" disabled={loading}>
               {selectedDistricts.length === locationData.district.length ? "Deselect All" : "Select All"}
+            </Button>
+            <Button 
+              onClick={addDistrictSelections} 
+              disabled={selectedDistricts.length === 0}
+              size="sm"
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+            >
+              Add Selection
             </Button>
           </div>
 
@@ -527,13 +752,13 @@ export function LocationSelector({
             )}
           </div>
 
-          <div className="flex flex-wrap gap-1 mt-2">
+          {/* <div className="flex flex-wrap gap-1 mt-2">
             {selectedDistricts.map((district) => (
               <Badge key={district} variant="secondary" className="text-xs">
                 {district}
               </Badge>
             ))}
-          </div>
+          </div> */}
         </div>
       </TabsContent>
 
@@ -582,13 +807,13 @@ export function LocationSelector({
             <Slider value={[poiRadius]} min={1} max={50} step={1} onValueChange={([value]) => setPoiRadius(value)} />
           </div>
 
-          <div className="flex flex-wrap gap-1 mt-2">
+          {/* <div className="flex flex-wrap gap-1 mt-2">
             {selectedPointsOfInterest.map((poi) => (
               <Badge key={poi} variant="secondary" className="text-xs">
                 {poi} ({poiRadius} mi)
               </Badge>
             ))}
-          </div>
+          </div> */}
         </div>
       </TabsContent>
 
@@ -624,5 +849,6 @@ export function LocationSelector({
         </div>
       </TabsContent>
     </Tabs>
+    </div>
   )
 }

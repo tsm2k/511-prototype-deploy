@@ -133,13 +133,13 @@ export default function Home() {
           <PlaceholderPage title="Data Catalog" onBack={() => handleViewChange("map")} />
         )}
         
-        {activeView === "settings" && (
+        {/* {activeView === "settings" && (
           <PlaceholderPage title="Settings" onBack={() => handleViewChange("map")} />
         )}
         
         {activeView === "guide" && (
           <PlaceholderPage title="User Guide" onBack={() => handleViewChange("map")} />
-        )}
+        )} */}
       </div>
     </div>
   )

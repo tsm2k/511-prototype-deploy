@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2, Filter as FilterIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { TimeframeSelector, TimeframeSelection } from "@/components/selectors/timeframe-selector"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LocationSelector } from "@/components/selectors/location-selector"
 import { DynamicDatasetSelector } from "@/components/selectors/dynamic-dataset-selector"
@@ -24,6 +25,17 @@ const Spinner = ({ className }: { className?: string }) => (
 
 
 // Define the structure for a single filter
+// Define the types of location selections
+type LocationSelectionType = "road" | "city" | "district"
+
+// Define the interface for location selections
+interface LocationSelection {
+  type: LocationSelectionType
+  selection: string | string[]
+  mileMarkerRange?: { min: number; max: number } // Only for road selections
+  operator?: "AND" | "OR" // Operator to use with the next selection
+}
+
 interface Filter {
   id: string
   name: string
@@ -37,6 +49,10 @@ interface Filter {
     pointsOfInterest?: string[]
   }
   timeframe: { start: string; end: string } | null
+  // New timeframe selections structure
+  timeframeSelections?: TimeframeSelection[]
+  // New location selections structure
+  locationSelections?: LocationSelection[]
   // Mile marker ranges for roads
   roadMileMarkerRanges?: Record<string, { min: number; max: number }>
   // New dataset structure
@@ -173,6 +189,8 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       pointsOfInterest: []
     },
     timeframe: null,
+    timeframeSelections: [],
+    locationSelections: [], // Initialize location selections
     roadMileMarkerRanges: {},
     // Initialize new dataset structure
     selectedDatasets: [],
@@ -275,34 +293,152 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   }
 
   const getLocationOverview = (filter: Filter) => {
-    const allLocations = [...filter.locations.roads, ...filter.locations.cities, ...filter.locations.districts]
-    if (allLocations.length === 0) return "No locations selected"
-    if (allLocations.length <= 3) return `Selected: ${allLocations.join(", ")}`
-    return `Selected: ${allLocations.slice(0, 2).join(", ")} + ${allLocations.length - 2} more`
+    // If we have location selections, use those for the overview
+    if (filter.locationSelections && filter.locationSelections.length > 0) {
+      // Group selections by type
+      const roadSelections = filter.locationSelections.filter(s => s.type === "road");
+      const citySelections = filter.locationSelections.filter(s => s.type === "city");
+      const districtSelections = filter.locationSelections.filter(s => s.type === "district");
+      
+      const parts = [];
+      
+      // Format road selections
+      if (roadSelections.length > 0) {
+        const roadNames = roadSelections.flatMap(s => 
+          Array.isArray(s.selection) ? s.selection : [s.selection]
+        );
+        parts.push(`Roads: ${roadNames.join(", ")}`);
+      }
+      
+      // Format city selections
+      if (citySelections.length > 0) {
+        const cityNames = citySelections.flatMap(s => 
+          Array.isArray(s.selection) ? s.selection : [s.selection]
+        );
+        parts.push(`Cities: ${cityNames.join(", ")}`);
+      }
+      
+      // Format district selections
+      if (districtSelections.length > 0) {
+        const districtNames = districtSelections.flatMap(s => 
+          Array.isArray(s.selection) ? s.selection : [s.selection]
+        );
+        parts.push(`Districts: ${districtNames.join(", ")}`);
+      }
+      
+      // Join all parts with the appropriate operators
+      if (parts.length === 0) {
+        return "No locations selected";
+      } else if (parts.length === 1) {
+        return parts[0];
+      } else {
+        // Insert operators between parts based on the selections
+        let result = parts[0];
+        for (let i = 1; i < parts.length; i++) {
+          // Find the operator from the previous selection of the same type
+          const prevSelectionOfType = filter.locationSelections.find(s => {
+            if (i === 1 && s.type === "road" && roadSelections.length > 0) return true;
+            if (i === 2 && s.type === "city" && citySelections.length > 0) return true;
+            return false;
+          });
+          
+          const operator = prevSelectionOfType?.operator || "AND";
+          result += ` ${operator} ${parts[i]}`;
+        }
+        return result;
+      }
+    }
+    
+    // Fall back to the old method if no selections
+    const allLocations = [...filter.locations.roads, ...filter.locations.cities, ...filter.locations.districts];
+    if (allLocations.length === 0) return "No locations selected";
+    if (allLocations.length <= 3) return `Selected: ${allLocations.join(", ")}`;
+    return `Selected: ${allLocations.slice(0, 2).join(", ")} + ${allLocations.length - 2} more`;
   }
 
   // Create a reference to store the getSummary function from TimeframeSelector
   const timeframeSummaryRef = { getSummary: null as null | (() => string) }
   
   const getTimeframeOverview = (filter: Filter) => {
-    if (!filter.timeframe) return "No timeframe selected"
-    
-    // Check if we have access to the getSummary function from the TimeframeSelector component
-    if (timeframeSummaryRef.getSummary) {
-      return timeframeSummaryRef.getSummary()
+    // Check if we have timeframe selections
+    if (filter.timeframeSelections && filter.timeframeSelections.length > 0) {
+      // Check if we have access to the getSummary function from the TimeframeSelector component
+      if (timeframeSummaryRef.getSummary) {
+        return timeframeSummaryRef.getSummary();
+      }
+      
+      // Format selections exactly like they appear in the Current Selections display
+      const parts = [];
+      
+      // Process each selection
+      for (let i = 0; i < filter.timeframeSelections.length; i++) {
+        const selection = filter.timeframeSelections[i];
+        let content = "";
+        
+        switch (selection.type) {
+          case "dateRange":
+            const formatDate = (date: Date) => {
+              return date.toLocaleDateString('en-US', { 
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              });
+            };
+            content = `${formatDate(selection.range.start)} to ${formatDate(selection.range.end)}`;
+            break;
+          case "recurringDay":
+            content = `Days: ${selection.selection.days.join(", ")}`;
+            break;
+          case "recurringMonth":
+            content = `Months: ${selection.selection.months.join(", ")}`;
+            break;
+          case "recurringHoliday":
+            content = `${selection.selection.holiday} (${selection.selection.years.join(", ")})`;
+            break;
+          case "recurringCombined":
+            const combinedParts = [];
+            if (selection.days.length > 0) combinedParts.push(`Days: ${selection.days.join(", ")}`);
+            if (selection.months.length > 0) combinedParts.push(`Months: ${selection.months.join(", ")}`);
+            if (selection.years && selection.years.length > 0) combinedParts.push(`Years: ${selection.years.join(", ")}`);
+            content = combinedParts.join(" + ");
+            break;
+        }
+        
+        parts.push(content);
+      }
+      
+      // Join all parts with the appropriate operators
+      if (parts.length === 0) {
+        return "No timeframe selected";
+      } else if (parts.length === 1) {
+        return parts[0];
+      } else {
+        // Insert operators between parts
+        let result = parts[0];
+        for (let i = 1; i < parts.length; i++) {
+          const prevSelection = filter.timeframeSelections[i-1];
+          const operator = prevSelection.operator || "AND";
+          result += ` ${operator} ${parts[i]}`;
+        }
+        return result;
+      }
     }
     
-    // Fallback to the old format if getSummary is not available
-    const formatDate = (dateStr: string) => {
-      const date = new Date(dateStr)
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })
+    // Fallback to the old format if no timeframe selections
+    if (filter.timeframe) {
+      const formatDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { 
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      };
+      
+      return `${formatDate(filter.timeframe.start)} to ${formatDate(filter.timeframe.end)}`;
     }
     
-    return `Selected: ${formatDate(filter.timeframe.start)} to ${formatDate(filter.timeframe.end)}`
+    return "No timeframe selected";
   }
   
   // Execute query against the API based on active filters
@@ -375,7 +511,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   return (
 <div className="h-full flex flex-col p-4 overflow-y-auto">
     <div className="mb-4">
-      <h2 className="text-2xl font-bold mb-2">Data Filters</h2>
+      <h2 className="text-xl font-bold mb-2">Data Filters</h2>
 
       <div className="flex items-center space-x-2">
         <Button
@@ -383,23 +519,33 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
           variant="outline"
           className="flex items-center"
         >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Filter
+        <Plus className="mr-2 h-4 w-4" />
+          Add Query
         </Button>
 
-        <Button
-          variant="outline"
-          className="flex items-center"
-        >
-          Save Setup
-        </Button>
+        <div className="relative group">
+          <Button
+            variant="outline"
+            className="flex items-center"
+          >
+            Save Query
+          </Button>
+          <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+            Not functional
+          </span>
+        </div>
 
-        <Button
-          variant="outline"
-          className="flex items-center"
-        >
-          Load Setup
-        </Button>
+        <div className="relative group">
+          <Button
+            variant="outline"
+            className="flex items-center"
+          >
+            Load Query
+          </Button>
+          <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+            Not functional
+          </span>
+        </div>
       </div>
     </div>
 
@@ -548,6 +694,12 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                             f.id === filter.id ? {...f, locations: {...f.locations, pointsOfInterest}} : f
                           ));
                         }}
+                        selections={filter.locationSelections || []}
+                        onSelectionsChange={(selections) => {
+                          setFilters(prevFilters => prevFilters.map(f => 
+                            f.id === filter.id ? {...f, locationSelections: selections} : f
+                          ));
+                        }}
                       />
                     </CardContent>
                   )}
@@ -571,7 +723,36 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                   </CardHeader>
                   {filter.openSelector === 'timeframe' && (
                     <CardContent>
-                      {}
+                      <TimeframeSelector
+                        selections={filter.timeframeSelections || []}
+                        onSelectionsChange={(selections: TimeframeSelection[]) => {
+                          setFilters(prevFilters => prevFilters.map(f => 
+                            f.id === filter.id ? {...f, timeframeSelections: selections} : f
+                          ));
+                          
+                          // Update the legacy timeframe format if there's a date range selection
+                          // This ensures backward compatibility
+                          const dateRangeSelection = selections.find((s: TimeframeSelection) => s.type === "dateRange");
+                          if (dateRangeSelection && dateRangeSelection.type === "dateRange") {
+                            const { start, end } = dateRangeSelection.range;
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {
+                                ...f, 
+                                timeframe: { 
+                                  start: start.toISOString(), 
+                                  end: end.toISOString() 
+                                }
+                              } : f
+                            ));
+                          } else if (selections.length === 0) {
+                            // Clear timeframe if no selections
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {...f, timeframe: null} : f
+                            ));
+                          }
+                        }}
+                        getSummaryRef={timeframeSummaryRef}
+                      />
                     </CardContent>
                   )}
                 </Card>
