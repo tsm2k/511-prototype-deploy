@@ -1,14 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2 } from "lucide-react"
-import { Input } from "./ui/input"
-import { Button } from "./ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
-import { LocationSelector } from "./selectors/location-selector"
-import { TimeframeSelector } from "./selectors/timeframe-selector"
-import { DatasetSelector } from "./selectors/dataset-selector"
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
+import { useState, useEffect, useCallback } from "react"
+import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2, Filter as FilterIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LocationSelector } from "@/components/selectors/location-selector"
+import { DynamicDatasetSelector } from "@/components/selectors/dynamic-dataset-selector"
+import { DatasetAttributeFilters } from "@/components/selectors/dataset-attribute-filters"
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { executeQuery } from "@/services/api"
+import { buildQueryRequest } from "@/services/query-builder"
+import { LocationFilter, TimeFilter } from "@/types/filters"
 
 // Simple Spinner component
 const Spinner = ({ className }: { className?: string }) => (
@@ -19,101 +22,131 @@ const Spinner = ({ className }: { className?: string }) => (
   </div>
 )
 
-interface LaneBlockage {
-  insideShoulderAffected: boolean
-  outsideShoulderAffected: boolean
-  allLanesAffected: boolean
-  exitRampAffected: boolean
-  entranceRampAffected: boolean
-  lanesAffected: number[]
-}
-
-interface CarEvent {
-  id: number
-  eventType: string
-  route: string
-  lat: number
-  lon: number
-  priorityLevel: number
-  eventStatus: string
-  dateStart: number
-  dateEnd: number | null
-  positiveLaneBlockageType: string
-  negativeLaneBlockageType: string
-  positiveLaneBlockage: LaneBlockage
-  negativeLaneBlockage: LaneBlockage
-  locationDetails: {
-    city: string[]
-    county: string[]
-    district: string[]
-  }
-}
 
 // Define the structure for a single filter
 interface Filter {
   id: string
   name: string
   isOpen: boolean
+  active: boolean // Whether this filter is currently active
   openSelector: string | null
   locations: {
     cities: string[]
     roads: string[]
     districts: string[]
+    pointsOfInterest?: string[]
   }
   timeframe: { start: string; end: string } | null
-  datasets: {
-    carEvents: string[]
-    laneBlockages: {
-      blockType: string[]
-      allLanesAffected: string[]
-      lanesAffected: {
-        positive: number[]
-        negative: number[]
-      }
-      additionalFilters: {
-        negative_exit_ramp_affected: boolean[]
-        negative_entrance_ramp_affected: boolean[]
-        positive_exit_ramp_affected: boolean[]
-        positive_entrance_ramp_affected: boolean[]
-        negative_inside_shoulder_affected: boolean[]
-        negative_outside_shoulder_affected: boolean[]
-        positive_inside_shoulder_affected: boolean[]
-        positive_outside_shoulder_affected: boolean[]
-      }
-    }
-    priorities: string[]
-    eventStatuses: string[]
-    restAreaFilters: {
-      capacity: string[]
-      spacesAvailable: string[]
-      siteAreaStatus: string[]
-      amenities: string[]
-    }
-  }
+  // Mile marker ranges for roads
+  roadMileMarkerRanges?: Record<string, { min: number; max: number }>
+  // New dataset structure
+  selectedDatasets: string[] // Array of selected dataset types
+  attributeFilters: Record<string, Record<string, string[]>> // Dynamic attribute filters for datasets
+  // datasetFilters: {
+  //   // Car Events filters
+  //   carEvents: {
+  //     enabled: boolean
+  //     types: string[]
+  //     showFilters: boolean
+  //   }
+  //   // Lane Blockages filters
+  //   laneBlockages: {
+  //     enabled: boolean
+  //     showFilters: boolean
+  //     blockType: string[]
+  //     allLanesAffected: string[]
+  //     lanesAffected: {
+  //       positive: number[]
+  //       negative: number[]
+  //     }
+  //     additionalFilters: {
+  //       negative_exit_ramp_affected: boolean[]
+  //       negative_entrance_ramp_affected: boolean[]
+  //       positive_exit_ramp_affected: boolean[]
+  //       positive_entrance_ramp_affected: boolean[]
+  //       negative_inside_shoulder_affected: boolean[]
+  //       negative_outside_shoulder_affected: boolean[]
+  //       positive_inside_shoulder_affected: boolean[]
+  //       positive_outside_shoulder_affected: boolean[]
+  //     }
+  //   }
+  //   // Rest Area filters
+  //   restArea: {
+  //     enabled: boolean
+  //     showFilters: boolean
+  //     filters: {
+  //       capacity: string[]
+  //       spacesAvailable: string[]
+  //       siteAreaStatus: string[]
+  //       amenities: string[]
+  //     }
+  //   }
+  //   // Dynamic Message Signs filters
+  //   dynamicMessageSigns: {
+  //     enabled: boolean
+  //     showFilters: boolean
+  //   }
+  //   // Traffic Timing System filters
+  //   trafficTimingSystem: {
+  //     enabled: boolean
+  //     showFilters: boolean
+  //   }
+  //   // Weather Events filters
+  //   weatherEvents: {
+  //     enabled: boolean
+  //     showFilters: boolean
+  //   }
+  //   // Social Events filters
+  //   socialEvents: {
+  //     enabled: boolean
+  //     showFilters: boolean
+  //   }
+  //   // Road Weather filters
+  //   roadWeather: {
+  //     enabled: boolean
+  //     showFilters: boolean
+  //   }
+  //   // General filters that apply to all datasets
+  //   priorities: string[]
+  //   eventStatuses: string[]
+  // }
+  // Keep the old structure for backward compatibility during transition
+  // datasets: {
+  //   carEvents: string[]
+  //   laneBlockages: {
+  //     blockType: string[]
+  //     allLanesAffected: string[]
+  //     lanesAffected: {
+  //       positive: number[]
+  //       negative: number[]
+  //     }
+  //     additionalFilters: {
+  //       negative_exit_ramp_affected: boolean[]
+  //       negative_entrance_ramp_affected: boolean[]
+  //       positive_exit_ramp_affected: boolean[]
+  //       positive_entrance_ramp_affected: boolean[]
+  //       negative_inside_shoulder_affected: boolean[]
+  //       negative_outside_shoulder_affected: boolean[]
+  //       positive_inside_shoulder_affected: boolean[]
+  //       positive_outside_shoulder_affected: boolean[]
+  //     }
+  //   }
+  //   priorities: string[]
+  //   eventStatuses: string[]
+  //   restAreaFilters: {
+  //     capacity: string[]
+  //     spacesAvailable: string[]
+  //     siteAreaStatus: string[]
+  //     amenities: string[]
+  //   }
+  // }
 }
 
 interface SelectorPanelProps {
-  onFilteredDataChange?: (events: CarEvent[]) => void
+  onFilteredDataChange?: () => void
   onSelectedDatasetsChange?: (datasets: {
-    carEvents: string[]
-    laneBlockages: {
-      blockType: string[]
-      allLanesAffected: string[]
-      lanesAffected: {
-        positive: number[]
-        negative: number[]
-      }
-      additionalFilters: {
-        negative_exit_ramp_affected: boolean[]
-        negative_entrance_ramp_affected: boolean[]
-        positive_exit_ramp_affected: boolean[]
-        positive_entrance_ramp_affected: boolean[]
-        negative_inside_shoulder_affected: boolean[]
-        negative_outside_shoulder_affected: boolean[]
-        positive_inside_shoulder_affected: boolean[]
-        positive_outside_shoulder_affected: boolean[]
-      }
-    }
+
+    selectedDatasetIds: string[]
   }) => void
 }
 
@@ -121,56 +154,30 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   // State for managing multiple filters
   const [filters, setFilters] = useState<Filter[]>([])
   const [activeFilterId, setActiveFilterId] = useState<string | null>(null)
-  
-  // State for car events data and loading
-  const [carEventsData, setCarEventsData] = useState<CarEvent[]>([])
-  const [filteredCarEvents, setFilteredCarEvents] = useState<CarEvent[]>([])
-  const [filteredCount, setFilteredCount] = useState<number | null>(null)
+
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
   
   // Helper function to create a new empty filter
-  const createEmptyFilter = (): Filter => ({
+  const createEmptyFilter = useCallback((): Filter => ({
     id: `filter-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     name: `Filter ${filters.length + 1}`,
     isOpen: true,
+    active: true, // New filters are active by default
     openSelector: null,
     locations: {
       cities: [],
       roads: [],
-      districts: []
+      districts: [],
+      pointsOfInterest: []
     },
     timeframe: null,
-    datasets: {
-      carEvents: [],
-      laneBlockages: {
-        blockType: [],
-        allLanesAffected: [],
-        lanesAffected: {
-          positive: [],
-          negative: []
-        },
-        additionalFilters: {
-          negative_exit_ramp_affected: [],
-          negative_entrance_ramp_affected: [],
-          positive_exit_ramp_affected: [],
-          positive_entrance_ramp_affected: [],
-          negative_inside_shoulder_affected: [],
-          negative_outside_shoulder_affected: [],
-          positive_inside_shoulder_affected: [],
-          positive_outside_shoulder_affected: []
-        }
-      },
-      priorities: [],
-      eventStatuses: [],
-      restAreaFilters: {
-        capacity: [],
-        spacesAvailable: [],
-        siteAreaStatus: [],
-        amenities: []
-      }
-    }
-  })
+    roadMileMarkerRanges: {},
+    // Initialize new dataset structure
+    selectedDatasets: [],
+    attributeFilters: {},
+  }), [filters.length])
   
   // Initialize with one empty filter
   useEffect(() => {
@@ -179,7 +186,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       setFilters([newFilter])
       setActiveFilterId(newFilter.id)
     }
-  }, [])
+  }, [filters.length, createEmptyFilter])
 
   // Function to toggle a selector within a filter
   const toggleSelector = (filterId: string, selector: string) => {
@@ -251,6 +258,21 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       })
     })
   }
+  
+  // Function to toggle a filter's active state
+  const toggleFilterActive = (filterId: string) => {
+    setFilters(prevFilters => {
+      return prevFilters.map(filter => {
+        if (filter.id === filterId) {
+          return {
+            ...filter,
+            active: !filter.active
+          }
+        }
+        return filter
+      })
+    })
+  }
 
   const getLocationOverview = (filter: Filter) => {
     const allLocations = [...filter.locations.roads, ...filter.locations.cities, ...filter.locations.districts]
@@ -259,10 +281,18 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
     return `Selected: ${allLocations.slice(0, 2).join(", ")} + ${allLocations.length - 2} more`
   }
 
+  // Create a reference to store the getSummary function from TimeframeSelector
+  const timeframeSummaryRef = { getSummary: null as null | (() => string) }
+  
   const getTimeframeOverview = (filter: Filter) => {
     if (!filter.timeframe) return "No timeframe selected"
     
-    // Format dates for better readability
+    // Check if we have access to the getSummary function from the TimeframeSelector component
+    if (timeframeSummaryRef.getSummary) {
+      return timeframeSummaryRef.getSummary()
+    }
+    
+    // Fallback to the old format if getSummary is not available
     const formatDate = (dateStr: string) => {
       const date = new Date(dateStr)
       return date.toLocaleDateString('en-US', { 
@@ -274,360 +304,108 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
     
     return `Selected: ${formatDate(filter.timeframe.start)} to ${formatDate(filter.timeframe.end)}`
   }
-
-  const getDatasetOverview = (filter: Filter) => {
-    const carEventsCount = filter.datasets.carEvents.length;
-    const laneBlockagesCount = (
-      filter.datasets.laneBlockages.blockType.length + 
-      filter.datasets.laneBlockages.allLanesAffected.length + 
-      filter.datasets.laneBlockages.lanesAffected.positive.length + 
-      filter.datasets.laneBlockages.lanesAffected.negative.length +
-      Object.values(filter.datasets.laneBlockages.additionalFilters).flat().length
-    );
-    const restAreaCount = Object.values(filter.datasets.restAreaFilters).flat().length;
-    
-    if (carEventsCount === 0 && laneBlockagesCount === 0 && restAreaCount === 0) return "No datasets selected";
-    
-    const datasets = [];
-    if (carEventsCount > 0) {
-      datasets.push(filter.datasets.carEvents.length <= 2 
-        ? filter.datasets.carEvents.join(", ")
-        : `${filter.datasets.carEvents.length} Car Events`);
-    }
-    if (laneBlockagesCount > 0) {
-      datasets.push("Lane Blockages");
-    }
-    if (restAreaCount > 0) {
-      datasets.push("Rest Area Filters");
-    }
-    
-    if (datasets.length <= 2) return `Selected: ${datasets.join(", ")}`;
-    return `Selected: ${datasets.slice(0, 2).join(", ")} + ${datasets.length - 2} more`;
-  }
   
-  // Load car events data
-  useEffect(() => {
-    const loadCarEventsData = async () => {
-      try {
-        // Using a relative path with public prefix to ensure proper loading
-        const response = await fetch('./json/cars-event-feed.json');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch car events data: ${response.status}`);
-        }
-        const data = await response.json();
-        setCarEventsData(data);
-        console.log('Successfully loaded car events data:', data.length, 'events');
-      } catch (err) {
-        console.error('Error loading car events data:', err);
-        setError('Failed to load car events data. Please try again.');
-      }
-    };
-    
-    loadCarEventsData();
-  }, []);
-  
-  // Update the parent component with selected datasets from active filter
-  useEffect(() => {
-    if (onSelectedDatasetsChange && activeFilterId) {
-      const activeFilter = filters.find(f => f.id === activeFilterId);
-      if (activeFilter) {
-        onSelectedDatasetsChange({
-          carEvents: activeFilter.datasets.carEvents,
-          laneBlockages: activeFilter.datasets.laneBlockages
-        });
-      }
-    }
-  }, [filters, activeFilterId, onSelectedDatasetsChange]);
-  
-  // Filter car events based on the active filter
-  const filterCarEvents = () => {
+  // Execute query against the API based on active filters
+  const executeFilterQuery = async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      // Find the active filter
-      const activeFilter = filters.find(f => f.id === activeFilterId);
+      // Get the active filter
+      const activeFilter = filters.find(f => f.id === activeFilterId && f.active);
+      
       if (!activeFilter) {
         setError('No active filter selected.');
-        setFilteredCount(0);
+        setIsLoading(false);
         return;
       }
       
-      // Start with all car events - don't filter by event type initially
-      let filtered = [...carEventsData];
+      // Build location filter from active filter
+      const locationFilter: LocationFilter = {
+        route: activeFilter.locations.roads,
+        region: activeFilter.locations.districts,
+        county: [],
+        city: activeFilter.locations.cities
+      };
       
-      // Log the total number of events before filtering
-      console.log(`Total events before filtering: ${filtered.length}`);
-      console.log('Filtering with:', activeFilter.name);
+      // Build time filter from active filter
+      const timeFilter: TimeFilter = {
+        startDate: activeFilter.timeframe?.start,
+        endDate: activeFilter.timeframe?.end
+      };
       
-      // Apply event type filter only if some are selected
-      if (activeFilter.datasets.carEvents.length > 0) {
-        filtered = filtered.filter(event => activeFilter.datasets.carEvents.includes(event.eventType));
-        console.log(`After event type filter: ${filtered.length} events`);
-      }
-      
-      // Filter by road
-      if (activeFilter.locations.roads.length > 0) {
-        filtered = filtered.filter(event => activeFilter.locations.roads.includes(event.route));
-        console.log(`After road filter: ${filtered.length} events`);
-      }
-      
-      // Filter by location (city)
-      if (activeFilter.locations.cities.length > 0) {
-        filtered = filtered.filter(event => 
-          event.locationDetails.city && event.locationDetails.city.some(city => 
-            activeFilter.locations.cities.includes(city)));
-        console.log(`After location filter: ${filtered.length} events`);
-      }
-      
-      // Filter by district
-      if (activeFilter.locations.districts.length > 0) {
-        filtered = filtered.filter(event => 
-          event.locationDetails.district && event.locationDetails.district.some(district => 
-            activeFilter.locations.districts.includes(district)));
-        console.log(`After district filter: ${filtered.length} events`);
-      }
-      
-      // Filter by priority
-      if (activeFilter.datasets.priorities.length > 0) {
-        filtered = filtered.filter(event => 
-          activeFilter.datasets.priorities.includes(String(event.priorityLevel)));
-        console.log(`After priority filter: ${filtered.length} events`);
-      }
-      
-      // Filter by event status
-      if (activeFilter.datasets.eventStatuses.length > 0) {
-        filtered = filtered.filter(event => 
-          activeFilter.datasets.eventStatuses.includes(event.eventStatus));
-        console.log(`After status filter: ${filtered.length} events`);
-      }
-      
-      // Filter by lane blockages
-      const laneBlockages = activeFilter.datasets.laneBlockages;
-      const hasLaneBlockageFilters = (
-        laneBlockages.blockType.length > 0 ||
-        laneBlockages.allLanesAffected.length > 0 ||
-        laneBlockages.lanesAffected.positive.length > 0 ||
-        laneBlockages.lanesAffected.negative.length > 0 ||
-        Object.values(laneBlockages.additionalFilters).some(arr => arr.length > 0)
+      // Build query request
+      const queryRequest = buildQueryRequest(
+        activeFilter.selectedDatasets,
+        activeFilter.attributeFilters,
+        locationFilter,
+        timeFilter
       );
       
-      console.log('Lane blockage filters:', {
-        blockType: laneBlockages.blockType,
-        allLanesAffected: laneBlockages.allLanesAffected,
-        lanesAffected: laneBlockages.lanesAffected,
-        additionalFilters: laneBlockages.additionalFilters
-      });
+      console.log('Executing query with request:', JSON.stringify(queryRequest, null, 2));
       
-      if (hasLaneBlockageFilters) {
-        filtered = filtered.filter(event => {
-          // For debugging
-          const hasPositiveBlockage = event.positiveLaneBlockage && 
-            (event.positiveLaneBlockage.allLanesAffected || 
-             (event.positiveLaneBlockage.lanesAffected && event.positiveLaneBlockage.lanesAffected.length > 0));
-          
-          const hasNegativeBlockage = event.negativeLaneBlockage && 
-            (event.negativeLaneBlockage.allLanesAffected || 
-             (event.negativeLaneBlockage.lanesAffected && event.negativeLaneBlockage.lanesAffected.length > 0));
-          
-          // Block Type filters
-          if (laneBlockages.blockType.length > 0) {
-            // If we're filtering by block type, check if either direction matches
-            const matchesPositiveBlockType = laneBlockages.blockType.includes(event.positiveLaneBlockageType || 'N/A');
-            const matchesNegativeBlockType = laneBlockages.blockType.includes(event.negativeLaneBlockageType || 'N/A');
-            
-            // If neither direction matches, filter out this event
-            if (!matchesPositiveBlockType && !matchesNegativeBlockType) {
-              return false;
-            }
-          }
-          
-          // All Lanes Affected filters
-          if (laneBlockages.allLanesAffected.length > 0) {
-            const positiveDirectionSelected = laneBlockages.allLanesAffected.includes("Positive Direction");
-            const negativeDirectionSelected = laneBlockages.allLanesAffected.includes("Negative Direction");
-            
-            // Check if the event has the selected all lanes affected property
-            const positiveAllLanesAffected = event.positiveLaneBlockage?.allLanesAffected === true;
-            const negativeAllLanesAffected = event.negativeLaneBlockage?.allLanesAffected === true;
-            
-            // If both directions are selected but neither is affected, filter out
-            if (positiveDirectionSelected && negativeDirectionSelected && 
-                !positiveAllLanesAffected && !negativeAllLanesAffected) {
-              return false;
-            }
-            
-            // If only positive direction is selected but not affected, filter out
-            if (positiveDirectionSelected && !negativeDirectionSelected && !positiveAllLanesAffected) {
-              return false;
-            }
-            
-            // If only negative direction is selected but not affected, filter out
-            if (negativeDirectionSelected && !positiveDirectionSelected && !negativeAllLanesAffected) {
-              return false;
-            }
-          }
-          
-          // Specific Lanes Affected filters
-          if (laneBlockages.lanesAffected.positive.length > 0) {
-            const positiveLanesAffected = event.positiveLaneBlockage?.lanesAffected || [];
-            
-            // Check if any of the selected positive lanes are affected
-            const hasMatchingPositiveLane = laneBlockages.lanesAffected.positive.some(lane => 
-              positiveLanesAffected.includes(Number(lane))
-            );
-            
-            if (!hasMatchingPositiveLane) {
-              return false;
-            }
-          }
-          
-          if (laneBlockages.lanesAffected.negative.length > 0) {
-            const negativeLanesAffected = event.negativeLaneBlockage?.lanesAffected || [];
-            
-            // Check if any of the selected negative lanes are affected
-            const hasMatchingNegativeLane = laneBlockages.lanesAffected.negative.some(lane => 
-              negativeLanesAffected.includes(Number(lane))
-            );
-            
-            if (!hasMatchingNegativeLane) {
-              return false;
-            }
-          }
-          
-          // Additional filters
-          const additionalFilters = laneBlockages.additionalFilters;
-          
-          // Exit Ramps
-          if (additionalFilters.negative_exit_ramp_affected.length > 0) {
-            // Check if the affected status is included in the selected filters
-            const isExitRampAffected = event.negativeLaneBlockage?.exitRampAffected === true;
-            const matchesFilter = additionalFilters.negative_exit_ramp_affected.includes(isExitRampAffected);
-            if (!matchesFilter) {
-              return false;
-            }
-          }
-          
-          if (additionalFilters.positive_exit_ramp_affected.length > 0) {
-            const isExitRampAffected = event.positiveLaneBlockage?.exitRampAffected === true;
-            const matchesFilter = additionalFilters.positive_exit_ramp_affected.includes(isExitRampAffected);
-            if (!matchesFilter) {
-              return false;
-            }
-          }
-          
-          // Entrance Ramps
-          if (additionalFilters.negative_entrance_ramp_affected.length > 0) {
-            const isEntranceRampAffected = event.negativeLaneBlockage?.entranceRampAffected === true;
-            const matchesFilter = additionalFilters.negative_entrance_ramp_affected.includes(isEntranceRampAffected);
-            if (!matchesFilter) {
-              return false;
-            }
-          }
-          
-          if (additionalFilters.positive_entrance_ramp_affected.length > 0) {
-            const isEntranceRampAffected = event.positiveLaneBlockage?.entranceRampAffected === true;
-            const matchesFilter = additionalFilters.positive_entrance_ramp_affected.includes(isEntranceRampAffected);
-            if (!matchesFilter) {
-              return false;
-            }
-          }
-          
-          // Inside Shoulders
-          if (additionalFilters.negative_inside_shoulder_affected.length > 0) {
-            const isInsideShoulderAffected = event.negativeLaneBlockage?.insideShoulderAffected === true;
-            const matchesFilter = additionalFilters.negative_inside_shoulder_affected.includes(isInsideShoulderAffected);
-            if (!matchesFilter) {
-              return false;
-            }
-          }
-          
-          if (additionalFilters.positive_inside_shoulder_affected.length > 0) {
-            const isInsideShoulderAffected = event.positiveLaneBlockage?.insideShoulderAffected === true;
-            const matchesFilter = additionalFilters.positive_inside_shoulder_affected.includes(isInsideShoulderAffected);
-            if (!matchesFilter) {
-              return false;
-            }
-          }
-          
-          // Outside Shoulders
-          if (additionalFilters.negative_outside_shoulder_affected.length > 0) {
-            const isOutsideShoulderAffected = event.negativeLaneBlockage?.outsideShoulderAffected === true;
-            const matchesFilter = additionalFilters.negative_outside_shoulder_affected.includes(isOutsideShoulderAffected);
-            if (!matchesFilter) {
-              return false;
-            }
-          }
-          
-          if (additionalFilters.positive_outside_shoulder_affected.length > 0) {
-            const isOutsideShoulderAffected = event.positiveLaneBlockage?.outsideShoulderAffected === true;
-            const matchesFilter = additionalFilters.positive_outside_shoulder_affected.includes(isOutsideShoulderAffected);
-            if (!matchesFilter) {
-              return false;
-            }
-          }
-          
-          return true;
-        });
-        
-        console.log(`After lane blockage filters: ${filtered.length} events`);
-      }
+      // Execute the query
+      const results = await executeQuery(queryRequest);
       
-      // Filter by timeframe
-      if (activeFilter.timeframe) {
-        const startTime = new Date(activeFilter.timeframe.start).getTime();
-        const endTime = new Date(activeFilter.timeframe.end).getTime();
-        
-        filtered = filtered.filter(event => {
-          // Event starts within the selected timeframe
-          const eventStartsInRange = event.dateStart >= startTime && event.dateStart <= endTime;
-          
-          // Event ends within the selected timeframe (if it has an end date)
-          const eventEndsInRange = event.dateEnd 
-            ? event.dateEnd >= startTime && event.dateEnd <= endTime
-            : false;
-          
-          // Event spans the selected timeframe
-          const eventSpansRange = event.dateStart <= startTime && 
-            (event.dateEnd ? event.dateEnd >= endTime : true);
-          
-          return eventStartsInRange || eventEndsInRange || eventSpansRange;
+      console.log('Query results:', JSON.stringify(results, null, 2));
+      
+      // Store the results
+      // setQueryResults(results);
+      
+      // Update filtered count
+      let totalResults = 0;
+      if (results && results.results) {
+        Object.values(results.results).forEach((datasetResults: any) => {
+          if (Array.isArray(datasetResults)) {
+            totalResults += datasetResults.length;
+          }
         });
       }
       
-      setFilteredCarEvents(filtered);
-      // Update the filtered count
-      setFilteredCount(filtered.length);
-      
-      // Pass filtered data to parent component if callback exists
-      if (onFilteredDataChange) {
-        onFilteredDataChange(filtered);
-      }
-    } catch (err) {
-      console.error('Error filtering car events:', err);
-      setError('Failed to filter car events. Please try again.');
-      setFilteredCount(null);
+      // We've removed the map marker functionality as requested
+      // The API response is still available in the queryResults state
+    } catch (err: any) {
+      console.error('Error executing query:', err);
+      setError(`Failed to execute query: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-y-auto">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Data Filters</h2>
-        <Button 
+<div className="h-full flex flex-col p-4 overflow-y-auto">
+    <div className="mb-4">
+      <h2 className="text-2xl font-bold mb-2">Data Filters</h2>
+
+      <div className="flex items-center space-x-2">
+        <Button
           onClick={addNewFilter}
           variant="outline"
           className="flex items-center"
         >
-          <Plus className="mr-2 h-4 w-4" /> Add Filter
+          <Plus className="mr-2 h-4 w-4" />
+          Add Filter
+        </Button>
+
+        <Button
+          variant="outline"
+          className="flex items-center"
+        >
+          Save Setup
+        </Button>
+
+        <Button
+          variant="outline"
+          className="flex items-center"
+        >
+          Load Setup
         </Button>
       </div>
+    </div>
 
       <div className="space-y-4">
         {filters.map((filter) => (
-          <Card key={filter.id} className={`mb-4 ${activeFilterId === filter.id ? 'border-blue-500 shadow-md' : ''}`}>
+          <Card key={filter.id} className={`mb-4 ${filter.active ? 'border-green-500' : 'border-gray-200'} ${activeFilterId === filter.id ? 'shadow-md' : ''}`}>
             <CardHeader className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -657,11 +435,13 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                       </CardTitle>
                     )}
                     
-                    {activeFilterId === filter.id && (
-                      <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                        Active
-                      </span>
-                    )}
+                    <span className="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {filter.active ? (
+                        <span className="text-green-800 bg-green-100 px-2 py-0.5 rounded-full">Active</span>
+                      ) : (
+                        <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">Inactive</span>
+                      )}
+                    </span>
                   </div>
                 </div>
                 
@@ -669,11 +449,21 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    className={`p-1 h-8 w-8 ${activeFilterId === filter.id ? 'text-blue-500' : ''}`}
-                    onClick={() => setActiveFilterId(filter.id)}
-                    title="Set as active filter"
+                    className={`p-1 h-8 w-8 ${filter.active ? 'text-green-500' : 'text-gray-400'}`}
+                    onClick={() => toggleFilterActive(filter.id)}
+                    title={filter.active ? "Deactivate filter" : "Activate filter"}
                   >
                     <Check className="h-4 w-4" />
+                  </Button>
+                  
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className={`p-1 h-8 w-8 ${activeFilterId === filter.id ? 'text-blue-500' : ''}`}
+                    onClick={() => setActiveFilterId(filter.id)}
+                    title="Edit this filter"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                   </Button>
                   
                   <Button 
@@ -699,10 +489,10 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                     <Calendar className="h-4 w-4 mr-1 mt-0.5" />
                     <span><strong>Timeframe:</strong> {getTimeframeOverview(filter)}</span>
                   </div>
-                  <div className="flex items-start">
+                  {/* <div className="flex items-start">
                     <Database className="h-4 w-4 mr-1 mt-0.5" />
                     <span><strong>Datasets:</strong> {getDatasetOverview(filter)}</span>
-                  </div>
+                  </div> */}
                 </div>
               )}
             </CardHeader>
@@ -719,6 +509,11 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                       </div>
                       {filter.openSelector === 'location' ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                     </div>
+                    {filter.openSelector !== 'location' && (
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        {getLocationOverview(filter)}
+                      </div>
+                    )}
                   </CardHeader>
                   {filter.openSelector === 'location' && (
                     <CardContent>
@@ -741,6 +536,18 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                             f.id === filter.id ? {...f, locations: {...f.locations, districts}} : f
                           ));
                         }}
+                        roadMileMarkerRanges={filter.roadMileMarkerRanges || {}}
+                        onRoadMileMarkerRangesChange={(ranges) => {
+                          setFilters(prevFilters => prevFilters.map(f => 
+                            f.id === filter.id ? {...f, roadMileMarkerRanges: ranges} : f
+                          ));
+                        }}
+                        selectedPointsOfInterest={filter.locations.pointsOfInterest || []}
+                        onSelectedPointsOfInterestChange={(pointsOfInterest) => {
+                          setFilters(prevFilters => prevFilters.map(f => 
+                            f.id === filter.id ? {...f, locations: {...f.locations, pointsOfInterest}} : f
+                          ));
+                        }}
                       />
                     </CardContent>
                   )}
@@ -756,17 +563,15 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                       </div>
                       {filter.openSelector === 'timeframe' ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                     </div>
+                    {filter.openSelector !== 'timeframe' && (
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        {getTimeframeOverview(filter)}
+                      </div>
+                    )}
                   </CardHeader>
                   {filter.openSelector === 'timeframe' && (
                     <CardContent>
-                      <TimeframeSelector
-                        selectedTimeframe={filter.timeframe}
-                        onSelectedTimeframeChange={(timeframe) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, timeframe} : f
-                          ));
-                        }}
-                      />
+                      {}
                     </CardContent>
                   )}
                 </Card>
@@ -777,48 +582,56 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Database className="h-5 w-5" />
-                        <CardTitle className="text-base">Select Dataset</CardTitle>
+                        <CardTitle className="text-base">Select Datasets</CardTitle>
                       </div>
                       {filter.openSelector === 'dataset' ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                     </div>
+                    {/* {filter.openSelector !== 'dataset' && (
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        {getDatasetOverview(filter)}
+                      </div>
+                    )} */}
                   </CardHeader>
                   {filter.openSelector === 'dataset' && (
-                    <CardContent>
-                      <DatasetSelector
-                        selectedCarEvents={filter.datasets.carEvents}
-                        onSelectedCarEventsChange={(carEvents) => {
+                    <CardContent className="pt-2">
+                      <DynamicDatasetSelector
+                        selectedDatasets={filter.selectedDatasets}
+                        onSelectedDatasetsChange={(datasets) => {
                           setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, datasets: {...f.datasets, carEvents}} : f
-                          ));
-                        }}
-                        selectedLaneBlockages={filter.datasets.laneBlockages}
-                        onSelectedLaneBlockagesChange={(laneBlockages) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, datasets: {...f.datasets, laneBlockages}} : f
-                          ));
-                        }}
-                        selectedRestAreaFilters={filter.datasets.restAreaFilters}
-                        onSelectedRestAreaFiltersChange={(restAreaFilters) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, datasets: {...f.datasets, restAreaFilters}} : f
-                          ));
-                        }}
-                        selectedPriorities={filter.datasets.priorities}
-                        onSelectedPrioritiesChange={(priorities) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, datasets: {...f.datasets, priorities}} : f
-                          ));
-                        }}
-                        selectedEventStatuses={filter.datasets.eventStatuses}
-                        onSelectedEventStatusesChange={(eventStatuses) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, datasets: {...f.datasets, eventStatuses}} : f
+                            f.id === filter.id ? {...f, selectedDatasets: datasets} : f
                           ));
                         }}
                       />
+                      
+                      {/* Dataset Attribute Filters */}
+                      {filter.selectedDatasets.length > 0 && (
+                        <DatasetAttributeFilters
+                          selectedDatasets={filter.selectedDatasets}
+                          selectedFilters={filter.attributeFilters}
+                          onFilterChange={(datasetId, attributeName, values) => {
+                            setFilters(prevFilters => prevFilters.map(f => {
+                              if (f.id === filter.id) {
+                                const updatedAttributeFilters = { ...f.attributeFilters };
+                                if (!updatedAttributeFilters[datasetId]) {
+                                  updatedAttributeFilters[datasetId] = {};
+                                }
+                                updatedAttributeFilters[datasetId][attributeName] = values;
+                                return { ...f, attributeFilters: updatedAttributeFilters };
+                              }
+                              return f;
+                            }));
+                          }}
+                          onSelectedDatasetsChange={(datasets) => {
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {...f, selectedDatasets: datasets} : f
+                            ));
+                          }}
+                        />
+                      )}
                     </CardContent>
                   )}
                 </Card>
+
               </div>
             )}
           </Card>
@@ -833,30 +646,11 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         </Alert>
       )}
       
-      {filteredCount !== null && filteredCount === 0 && (
-        <Alert className="mt-4 bg-amber-50 border-amber-200">
-          <AlertCircle className="h-4 w-4 text-amber-500" />
-          <AlertTitle className="text-amber-700">No Data Available</AlertTitle>
-          <AlertDescription className="text-amber-600">
-            No data matches your current filter criteria. Try adjusting your filters to see results.
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {filteredCount !== null && filteredCount > 0 && (
-        <div className="mt-4 text-sm text-gray-600 flex items-center">
-          <span className="inline-flex items-center justify-center rounded-full bg-green-100 px-2.5 py-0.5 text-green-700 mr-2">
-            {filteredCount}
-          </span>
-          events match your filters
-        </div>
-      )}
-      
       <div className="mt-auto pt-4 flex gap-2">
         <Button 
           className="flex-1" 
-          onClick={filterCarEvents} 
-          disabled={isLoading}
+          onClick={executeFilterQuery} 
+          disabled={isLoading || !activeFilterId}
           variant="default"
         >
           {isLoading ? (
@@ -866,7 +660,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
             </>
           ) : (
             <>
-              <RefreshCw className="mr-2 h-4 w-4" />
+              <FilterIcon className="mr-2 h-4 w-4" />
               Apply Filters
             </>
           )}

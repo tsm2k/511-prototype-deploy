@@ -1,8 +1,8 @@
 "use client"
 
 import { Map, BarChart3, Database, Settings, BookOpen } from "lucide-react"
-import { Button } from "./ui/button"
-import { cn } from "../lib/utils"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface AppTopbarProps {
   activeView: string
@@ -14,7 +14,7 @@ export function AppTopbar({ activeView, onViewChange }: AppTopbarProps) {
   const menuItems = [
     { id: "map", label: "Map View", icon: Map },
     { id: "chart", label: "Chart View", icon: BarChart3 },
-    { id: "data", label: "Data Catalog", icon: Database },
+    // { id: "data", label: "Data Catalog", icon: Database },
     { id: "settings", label: "Settings", icon: Settings },
     { id: "guide", label: "Guide", icon: BookOpen },
   ]
@@ -32,8 +32,8 @@ export function AppTopbar({ activeView, onViewChange }: AppTopbarProps) {
                 key={item.id}
                 variant={activeView === item.id ? "secondary" : "ghost"}
                 className={cn(
-                  "text-white hover:bg-zinc-800", 
-                  activeView === item.id && "bg-zinc-800"
+                  "text-white hover:bg-zinc-400", 
+                  activeView === item.id && "bg-zinc-700"
                 )}
                 onClick={() => onViewChange(item.id)}
               >

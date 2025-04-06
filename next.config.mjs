@@ -16,15 +16,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  output: 'export',  // Enable static exports
-  // GitHub Pages uses the repository name as the base path
-  basePath: '/511-prototype-deploy',
-  // This ensures assets are correctly referenced
-  assetPrefix: '/511-prototype-deploy',
-  // Transpile dependencies to fix import issues
-  transpilePackages: ['lucide-react'],
-  // Specify the output directory explicitly
-  distDir: 'dist'
+  experimental: {
+    webpackBuildWorker: true,
+    parallelServerBuildTraces: true,
+    parallelServerCompiles: true,
+  },
 }
 
 mergeConfig(nextConfig, userConfig)

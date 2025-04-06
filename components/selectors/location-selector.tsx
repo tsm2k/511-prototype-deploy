@@ -1,164 +1,58 @@
 "use client"
 
-import { useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
-import { Label } from "../ui/label"
-import { Slider } from "../ui/slider"
-import { Button } from "../ui/button"
-import { Checkbox } from "../ui/checkbox"
-import { Input } from "../ui/input"
-import { Badge } from "../ui/badge"
-import { Pencil, Circle } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Pencil, Circle, AlertCircle } from "lucide-react"
 
-const roads = [
-  "I-265",
-  "I-275",
-  "I-465",
-  "I-469",
-  "I-64",
-  "I-65",
-  "I-69",
-  "I-70",
-  "I-74",
-  "I-80",
-  "I-80 Illinois",
-  "I-865",
-  "I-94",
-  "IN 1",
-  "IN 10",
-  "IN 114",
-  "IN 13",
-  "IN 135",
-  "IN 15",
-  "IN 161",
-  "IN 2",
-  "IN 213",
-  "IN 235",
-  "IN 236",
-  "IN 250",
-  "IN 252",
-  "IN 256",
-  "IN 32",
-  "IN 327",
-  "IN 337",
-  "IN 37",
-  "IN 38",
-  "IN 39",
-  "IN 42",
-  "IN 44",
-  "IN 45",
-  "IN 450",
-  "IN 46",
-  "IN 56",
-  "IN 57",
-  "IN 61",
-  "IN 62",
-  "IN 63",
-  "IN 66",
-  "IN 67",
-  "IN 7",
-  "IN 70",
-  "US 150",
-  "US 20",
-  "US 231",
-  "US 24",
-  "US 27",
-  "US 30",
-  "US 31",
-  "US 35",
-  "US 40",
-  "US 41",
-  "US 421",
-  "US 50",
-  "US 52",
-  "US 6"
+// Import from centralized API service
+import { fetchLocationData, LocationData } from "@/services/api"
+
+// Points of Interest in Indiana (not from API)
+const pointsOfInterest = [
+  "Lucas Oil Stadium",
+  "Indianapolis Motor Speedway",
+  "Children's Museum of Indianapolis",
+  "Indiana Dunes National Park",
+  "Brown County State Park",
+  "Conner Prairie",
+  "Indiana University Bloomington",
+  "Purdue University",
+  "Notre Dame University",
+  "White River State Park",
+  "Eagle Creek Park",
+  "Fort Wayne Children's Zoo",
+  "Eiteljorg Museum",
+  "Indiana State Museum",
+  "Soldiers and Sailors Monument",
+  "Turkey Run State Park",
+  "McCormick's Creek State Park",
+  "Marengo Cave",
+  "Holiday World & Splashin' Safari",
+  "French Lick Resort",
+  "Tippecanoe Battlefield",
+  "Hoosier National Forest",
+  "Prophetstown State Park",
+  "Falls of the Ohio State Park",
+  "Mesker Park Zoo"
 ]
 
-const cities = [
-  "Anderson",
-  "Auburn",
-  "Bedford",
-  "Beech Grove",
-  "Bloomington",
-  "Boonville",
-  "Brownsburg",
-  "Burns Harbor",
-  "Carlisle",
-  "Carmel",
-  "Clarksville",
-  "Clear Creek",
-  "Cloverdale",
-  "Columbus",
-  "Crawfordsville",
-  "Crown Point",
-  "Evansville",
-  "Fishers",
-  "Fort Wayne",
-  "Franklin",
-  "Gary",
-  "Gas City",
-  "Greenfield",
-  "Greensburg",
-  "Greens Fork",
-  "Greenwood",
-  "Grissom AFB",
-  "Hammond",
-  "Henryville",
-  "Hobart",
-  "Huntington",
-  "Indianapolis",
-  "Ingalls",
-  "Jeffersonville",
-  "Kokomo",
-  "Lake Station",
-  "Lawrence",
-  "Lebanon",
-  "Louisville",
-  "Martinsville",
-  "Medora",
-  "Memphis",
-  "Merrillville",
-  "Middlebury",
-  "Mooresville",
-  "Munster",
-  "New Albany",
-  "Noblesville",
-  "Orland",
-  "Orleans",
-  "Paoli",
-  "Pendleton",
-  "Pipe Creek",
-  "Plainfield",
-  "Plymouth",
-  "Portage",
-  "Porter",
-  "Remington",
-  "Roselawn",
-  "Scottsburg",
-  "Sellersburg",
-  "Shelbyville",
-  "Speedway",
-  "Spiceland",
-  "Taylorsville",
-  "Tecumseh",
-  "Terre Haute",
-  "Versailles",
-  "Wabash",
-  "Westfield",
-  "Whiteland",
-  "Whitestown",
-  "Wolcott",
-  "Zionsville"
-]
+// Define the interface for mile marker ranges
+interface MileMarkerRange {
+  min: number
+  max: number
+}
 
-const districts = [
-  "CRAWFORDSVILLE",
-  "FORT WAYNE",
-  "GREENFIELD",
-  "LAPORTE",
-  "SEYMOUR",
-  "VINCENNES"
-]
+// Define the interface for road selection with mile marker range
+interface RoadSelection {
+  road: string
+  mileMarkerRange: MileMarkerRange
+}
 
 export interface LocationSelectorProps {
   selectedRoads: string[]
@@ -170,6 +64,14 @@ export interface LocationSelectorProps {
   selectedDistricts: string[]
   onSelectedDistrictsChange?: (districts: string[]) => void
   setSelectedDistricts?: (districts: string[]) => void
+  // New props for points of interest
+  selectedPointsOfInterest?: string[]
+  onSelectedPointsOfInterestChange?: (pois: string[]) => void
+  setSelectedPointsOfInterest?: (pois: string[]) => void
+  // New props for mile marker ranges
+  roadMileMarkerRanges?: Record<string, MileMarkerRange>
+  onRoadMileMarkerRangesChange?: (ranges: Record<string, MileMarkerRange>) => void
+  setRoadMileMarkerRanges?: (ranges: Record<string, MileMarkerRange>) => void
 }
 
 export function LocationSelector({
@@ -182,52 +84,98 @@ export function LocationSelector({
   selectedDistricts,
   onSelectedDistrictsChange,
   setSelectedDistricts,
+  selectedPointsOfInterest = [],
+  onSelectedPointsOfInterestChange,
+  setSelectedPointsOfInterest,
+  roadMileMarkerRanges = {},
+  onRoadMileMarkerRangesChange,
+  setRoadMileMarkerRanges,
 }: LocationSelectorProps) {
-  const [radius, setRadius] = useState(10)
-  const [mileMarkerRange, setMileMarkerRange] = useState([0, 100])
+  const [poiRadius, setPoiRadius] = useState(10)
+  // Remove the global mileMarkerRange state as we'll use per-road ranges
   const [drawMode, setDrawMode] = useState<"polygon" | "circle" | null>(null)
   const [searchRoad, setSearchRoad] = useState("")
   const [searchLocation, setSearchLocation] = useState("")
   const [searchDistrict, setSearchDistrict] = useState("")
+  const [searchPOI, setSearchPOI] = useState("")
+  
+  // State for API data
+  const [locationData, setLocationData] = useState<LocationData>({
+    city: [],
+    district: [],
+    route: []
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filteredRoads = roads.filter((road) => road.toLowerCase().includes(searchRoad.toLowerCase()))
-
-  const filteredLocations = cities.filter((location) =>
-    location.toLowerCase().includes(searchLocation.toLowerCase()),
-  )
-
-  const filteredDistricts = districts.filter((district) =>
-    district.toLowerCase().includes(searchDistrict.toLowerCase()),
-  )
-
-  const toggleAllRoads = () => {
-    const updatedRoads = selectedRoads.length === roads.length ? [] : [...roads];
-    
-    if (onSelectedRoadsChange) {
-      onSelectedRoadsChange?.(updatedRoads);
-    } else if (setSelectedRoads) {
-      setSelectedRoads?.(updatedRoads);
+  // Fetch location data from API
+  useEffect(() => {
+    const getLocationData = async () => {
+      setLoading(true)
+      try {
+        // Use the centralized API service to fetch location data
+        const data = await fetchLocationData('event_location_info')
+        setLocationData(data)
+        setError(null)
+      } catch (err) {
+        console.error('Error fetching location data:', err)
+        setError('Failed to fetch location data. Using fallback data.')
+      } finally {
+        setLoading(false)
+      }
     }
+    
+    getLocationData()
+  }, [])
+  
+  // Filter functions using the dynamic data
+  const filteredRoads = locationData.route.filter(road => 
+    road.toLowerCase().includes(searchRoad.toLowerCase())
+  )
+
+  const filteredLocations = locationData.city.filter(location => 
+    location.toLowerCase().includes(searchLocation.toLowerCase())
+  )
+
+  const filteredDistricts = locationData.district.filter(district => 
+    district.toLowerCase().includes(searchDistrict.toLowerCase())
+  )
+
+  const filteredPointsOfInterest = pointsOfInterest.filter(poi => 
+    poi.toLowerCase().includes(searchPOI.toLowerCase())
+  )
+
+  // Toggle functions updated to use dynamic data
+  const toggleAllRoads = () => {
+    const updatedRoads = selectedRoads.length === locationData.route.length ? [] : [...locationData.route];
+    
+    // Always update both state and call callback
+    setSelectedRoads?.(updatedRoads);
+    onSelectedRoadsChange?.(updatedRoads);
   }
 
   const toggleAllLocations = () => {
-    const updatedLocations = selectedLocations.length === cities.length ? [] : [...cities];
+    const updatedLocations = selectedLocations.length === locationData.city.length ? [] : [...locationData.city];
     
-    if (onSelectedLocationsChange) {
-      onSelectedLocationsChange?.(updatedLocations);
-    } else if (setSelectedLocations) {
-      setSelectedLocations?.(updatedLocations);
-    }
+    // Always update both state and call callback
+    setSelectedLocations?.(updatedLocations);
+    onSelectedLocationsChange?.(updatedLocations);
   }
 
   const toggleAllDistricts = () => {
-    const updatedDistricts = selectedDistricts.length === districts.length ? [] : [...districts];
+    const updatedDistricts = selectedDistricts.length === locationData.district.length ? [] : [...locationData.district];
     
-    if (onSelectedDistrictsChange) {
-      onSelectedDistrictsChange(updatedDistricts);
-    } else if (setSelectedDistricts) {
-      setSelectedDistricts?.(updatedDistricts);
-    }
+    // Always update both state and call callback
+    setSelectedDistricts?.(updatedDistricts);
+    onSelectedDistrictsChange?.(updatedDistricts);
+  }
+
+  const toggleAllPointsOfInterest = () => {
+    const updatedPOIs = selectedPointsOfInterest.length === pointsOfInterest.length ? [] : [...pointsOfInterest];
+    
+    // Always update both state and call callback
+    setSelectedPointsOfInterest?.(updatedPOIs);
+    onSelectedPointsOfInterestChange?.(updatedPOIs);
   }
 
   return (
@@ -236,10 +184,17 @@ export function LocationSelector({
         <TabsTrigger value="road" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Road</TabsTrigger>
         <TabsTrigger value="city" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">City</TabsTrigger>
         <TabsTrigger value="districts" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Districts</TabsTrigger>
+        <TabsTrigger value="points-of-interest" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Points of Interest</TabsTrigger>
         <TabsTrigger value="draw" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Draw</TabsTrigger>
       </TabsList>
 
       <TabsContent value="road" className="space-y-4">
+        {error && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-800" />
+            <p className="text-amber-800 text-sm">{error}</p>
+          </div>
+        )}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Input
@@ -248,157 +203,229 @@ export function LocationSelector({
               onChange={(e) => setSearchRoad(e.target.value)}
               className="flex-1"
             />
-            <Button variant="outline" onClick={toggleAllRoads} size="sm">
-              {selectedRoads.length === roads.length ? "Deselect All" : "Select All"}
+            <Button variant="outline" onClick={toggleAllRoads} size="sm" disabled={loading}>
+              {selectedRoads.length === locationData.route.length ? "Deselect All" : "Select All"}
             </Button>
           </div>
 
-          <div className="max-h-60 overflow-y-auto border rounded-md p-2 grid grid-cols-2 gap-2">
-            {filteredRoads.map((road) => (
-              <div key={road} className="flex items-center space-x-2 py-1">
-                <Checkbox
-                  id={`road-${road}`}
-                  checked={selectedRoads.includes(road)}
-                  onCheckedChange={(checked) => {
-                    const updatedRoads = checked 
-                      ? [...selectedRoads, road]
-                      : selectedRoads.filter((r) => r !== road);
-                      
-                    if (onSelectedRoadsChange) {
-                      onSelectedRoadsChange(updatedRoads);
-                    } else if (setSelectedRoads) {
-                      setSelectedRoads?.(updatedRoads);
-                    }
-                  }}
-                />
-                <Label htmlFor={`road-${road}`}>{road}</Label>
+          <div className="max-h-[400px] overflow-y-auto border rounded-md p-2">
+            {loading ? (
+              <div className="flex justify-center items-center h-20">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
               </div>
-            ))}
+            ) : (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {filteredRoads.map((road) => {
+                // Get the mile marker range for this road or use default
+                const range = roadMileMarkerRanges[road] || { min: 0, max: 500 };
+                
+                return (
+                  <div key={road} className="border-b border-gray-100 last:border-b-0 py-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`road-${road}`}
+                          checked={selectedRoads.includes(road)}
+                          onCheckedChange={(checked) => {
+                            const updatedRoads = checked 
+                              ? [...selectedRoads, road]
+                              : selectedRoads.filter((r) => r !== road);
+                            
+                            // Always update both state and call callback
+                            setSelectedRoads?.(updatedRoads);
+                            onSelectedRoadsChange?.(updatedRoads);
+                            
+                            // If adding a road, initialize its mile marker range if not already set
+                            if (checked && !roadMileMarkerRanges[road] && setRoadMileMarkerRanges) {
+                              const updatedRanges = { ...roadMileMarkerRanges, [road]: { min: 0, max: 500 } };
+                              setRoadMileMarkerRanges(updatedRanges);
+                              onRoadMileMarkerRangesChange?.(updatedRanges);
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`road-${road}`} className="font-medium text-sm">{road}</Label>
+                      </div>
+                      
+                      {selectedRoads.includes(road) && (
+                        <div className="flex items-center">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                            onClick={() => {
+                              // Open the mile marker range selector for this road
+                              const rangeSelector = document.getElementById(`range-selector-${road}`);
+                              if (rangeSelector) {
+                                rangeSelector.classList.toggle('hidden');
+                              }
+                            }}
+                          >
+                            MM {range.min}-{range.max}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Mile Marker Range Selector - Initially Hidden */}
+                    {selectedRoads.includes(road) && (
+                      <div id={`range-selector-${road}`} className="mt-2 px-2 pt-2 pb-3 bg-gray-50 rounded-md hidden">
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="text-xs font-medium">Mile Marker Range</Label>
+                          <div className="bg-white text-gray-800 text-xs font-medium px-2 py-1 rounded-md border border-gray-200">
+                            {range.min} - {range.max}
+                          </div>
+                        </div>
+                        
+                        {/* Range Slider */}
+                        <div id={`slider-container-${road}`} className="relative pt-2 pb-2 mb-3">
+                          {/* Track */}
+                          <div className="h-2 w-full bg-gray-200 rounded-full relative">
+                            {/* Colored range between thumbs */}
+                            <div 
+                              className="absolute h-full bg-blue-500 rounded-full" 
+                              style={{
+                                left: `${(range.min / 500) * 100}%`,
+                                width: `${((range.max - range.min) / 500) * 100}%`
+                              }}
+                            />
+                          </div>
+                          
+                          {/* Left thumb */}
+                          <div 
+                            className="absolute top-0 -mt-1 -ml-2.5 h-5 w-5 rounded-full border-2 border-blue-500 bg-white cursor-pointer shadow-md hover:scale-110 transition-transform"
+                            style={{ left: `${(range.min / 500) * 100}%` }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              const sliderContainer = document.getElementById(`slider-container-${road}`);
+                              if (!sliderContainer) return;
+                              
+                              const sliderRect = sliderContainer.getBoundingClientRect();
+                              
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const newPosition = Math.max(0, Math.min(500, ((moveEvent.clientX - sliderRect.left) / sliderRect.width) * 500));
+                                if (newPosition < range.max) {
+                                  const updatedRanges = { 
+                                    ...roadMileMarkerRanges, 
+                                    [road]: { min: Math.round(newPosition), max: range.max } 
+                                  };
+                                  setRoadMileMarkerRanges?.(updatedRanges);
+                                  onRoadMileMarkerRangesChange?.(updatedRanges);
+                                }
+                              };
+                              
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+                              
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                          
+                          {/* Right thumb */}
+                          <div 
+                            className="absolute top-0 -mt-1 -ml-2.5 h-5 w-5 rounded-full border-2 border-blue-500 bg-white cursor-pointer shadow-md hover:scale-110 transition-transform"
+                            style={{ left: `${(range.max / 500) * 100}%` }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              const sliderContainer = document.getElementById(`slider-container-${road}`);
+                              if (!sliderContainer) return;
+                              
+                              const sliderRect = sliderContainer.getBoundingClientRect();
+                              
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const newPosition = Math.max(0, Math.min(500, ((moveEvent.clientX - sliderRect.left) / sliderRect.width) * 500));
+                                if (newPosition > range.min) {
+                                  const updatedRanges = { 
+                                    ...roadMileMarkerRanges, 
+                                    [road]: { min: range.min, max: Math.round(newPosition) } 
+                                  };
+                                  setRoadMileMarkerRanges?.(updatedRanges);
+                                  onRoadMileMarkerRangesChange?.(updatedRanges);
+                                }
+                              };
+                              
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+                              
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                        </div>
+                        
+                        {/* Input fields */}
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1">
+                            <input
+                              type="number"
+                              value={range.min}
+                              min={0}
+                              max={range.max - 1}
+                              onChange={(e) => {
+                                const value = Math.max(0, Math.min(range.max - 1, parseInt(e.target.value) || 0));
+                                const updatedRanges = { 
+                                  ...roadMileMarkerRanges, 
+                                  [road]: { min: value, max: range.max } 
+                                };
+                                setRoadMileMarkerRanges?.(updatedRanges);
+                                onRoadMileMarkerRangesChange?.(updatedRanges);
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          <div className="text-gray-400">—</div>
+                          <div className="flex-1">
+                            <input
+                              type="number"
+                              value={range.max}
+                              min={range.min + 1}
+                              max={500}
+                              onChange={(e) => {
+                                const value = Math.max(range.min + 1, Math.min(500, parseInt(e.target.value) || 0));
+                                const updatedRanges = { 
+                                  ...roadMileMarkerRanges, 
+                                  [road]: { min: range.min, max: value } 
+                                };
+                                setRoadMileMarkerRanges?.(updatedRanges);
+                                onRoadMileMarkerRangesChange?.(updatedRanges);
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              </div>
+            )}
           </div>
 
-          {selectedRoads.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>Mile Marker Range (Not Functional)</Label>
-                <div className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-1 rounded-md">
-                  {mileMarkerRange[0]} - {mileMarkerRange[1]}
-                </div>
-              </div>
-              
-              <div id="slider-container" className="relative pt-2 pb-2">
-                {/* Custom Range Slider */}
-                <div className="h-2 w-full bg-gray-200 rounded-full relative">
-                  {/* Colored range between thumbs */}
-                  <div 
-                    className="absolute h-full bg-black rounded-full" 
-                    style={{
-                      left: `${mileMarkerRange[0]}%`,
-                      width: `${mileMarkerRange[1] - mileMarkerRange[0]}%`
-                    }}
-                  />
-                </div>
-                
-                {/* Left thumb - draggable */}
-                <div 
-                  className="absolute top-0 -mt-1 -ml-2.5 h-5 w-5 rounded-full border-2 border-black bg-white cursor-pointer shadow-md hover:scale-110 transition-transform"
-                  style={{ left: `${mileMarkerRange[0]}%` }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const sliderContainer = document.getElementById('slider-container');
-                    if (!sliderContainer) return;
-                    
-                    const sliderRect = sliderContainer.getBoundingClientRect();
-                    
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const newPosition = Math.max(0, Math.min(100, ((moveEvent.clientX - sliderRect.left) / sliderRect.width) * 100));
-                      if (newPosition < mileMarkerRange[1]) {
-                        setMileMarkerRange([Math.round(newPosition), mileMarkerRange[1]]);
-                      }
-                    };
-                    
-                    const handleMouseUp = () => {
-                      document.removeEventListener('mousemove', handleMouseMove);
-                      document.removeEventListener('mouseup', handleMouseUp);
-                    };
-                    
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                  }}
-                />
-                
-                {/* Right thumb - draggable */}
-                <div 
-                  className="absolute top-0 -mt-1 -ml-2.5 h-5 w-5 rounded-full border-2 border-black bg-white cursor-pointer shadow-md hover:scale-110 transition-transform"
-                  style={{ left: `${mileMarkerRange[1]}%` }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const sliderContainer = document.getElementById('slider-container');
-                    if (!sliderContainer) return;
-                    
-                    const sliderRect = sliderContainer.getBoundingClientRect();
-                    
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const newPosition = Math.max(0, Math.min(100, ((moveEvent.clientX - sliderRect.left) / sliderRect.width) * 100));
-                      if (newPosition > mileMarkerRange[0]) {
-                        setMileMarkerRange([mileMarkerRange[0], Math.round(newPosition)]);
-                      }
-                    };
-                    
-                    const handleMouseUp = () => {
-                      document.removeEventListener('mousemove', handleMouseMove);
-                      document.removeEventListener('mouseup', handleMouseUp);
-                    };
-                    
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                  }}
-                />
-              </div>
-              
-              {/* Input fields */}
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    value={mileMarkerRange[0]}
-                    min={0}
-                    max={mileMarkerRange[1] - 1}
-                    onChange={(e) => {
-                      const value = Math.max(0, Math.min(mileMarkerRange[1] - 1, parseInt(e.target.value) || 0));
-                      setMileMarkerRange([value, mileMarkerRange[1]]);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-center text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-gray-800"
-                  />
-                </div>
-                <div className="text-gray-400">—</div>
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    value={mileMarkerRange[1]}
-                    min={mileMarkerRange[0] + 1}
-                    max={100}
-                    onChange={(e) => {
-                      const value = Math.max(mileMarkerRange[0] + 1, Math.min(100, parseInt(e.target.value) || 0));
-                      setMileMarkerRange([mileMarkerRange[0], value]);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-center text-sm focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-gray-800"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="flex flex-wrap gap-1 mt-2">
-            {selectedRoads.map((road) => (
-              <Badge key={road} variant="secondary" className="text-xs">
-                {road}
-              </Badge>
-            ))}
+            {selectedRoads.map((road) => {
+              const range = roadMileMarkerRanges[road] || { min: 0, max: 500 };
+              return (
+                <Badge key={road} variant="secondary" className="text-xs">
+                  {road} (MM {range.min}-{range.max})
+                </Badge>
+              );
+            })}
           </div>
         </div>
       </TabsContent>
 
       <TabsContent value="city" className="space-y-4">
+        {error && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-800" />
+            <p className="text-amber-800 text-sm">{error}</p>
+          </div>
+        )}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Input
@@ -407,39 +434,44 @@ export function LocationSelector({
               onChange={(e) => setSearchLocation(e.target.value)}
               className="flex-1"
             />
-            <Button variant="outline" onClick={toggleAllLocations} size="sm">
-              {selectedLocations.length === cities.length ? "Deselect All" : "Select All"}
+            <Button variant="outline" onClick={toggleAllLocations} size="sm" disabled={loading}>
+              {selectedLocations.length === locationData.city.length ? "Deselect All" : "Select All"}
             </Button>
           </div>
 
-          <div className="max-h-60 overflow-y-auto border rounded-md p-2 grid grid-cols-2 gap-2">
-            {filteredLocations.map((location) => (
-              <div key={location} className="flex items-center space-x-2 py-1">
-                <Checkbox
-                  id={`location-${location}`}
-                  checked={selectedLocations.includes(location)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedLocations?.([...selectedLocations, location])
-                    } else {
-                      setSelectedLocations?.(selectedLocations.filter((l) => l !== location))
-                    }
-                  }}
-                />
-                <Label htmlFor={`location-${location}`}>{location}</Label>
+          <div className="max-h-60 overflow-y-auto border rounded-md p-2">
+            {loading ? (
+              <div className="flex justify-center items-center h-20">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
               </div>
-            ))}
-          </div>
-
-          <div className="space-y-2">
-            <Label>Radius (miles) (Not Functional): {radius}</Label>
-            <Slider value={[radius]} min={1} max={50} step={1} onValueChange={([value]) => setRadius(value)} />
+            ) : (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {filteredLocations.map((location) => (
+                  <div key={location} className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      id={`location-${location}`}
+                      checked={selectedLocations.includes(location)}
+                      onCheckedChange={(checked) => {
+                        const updatedLocations = checked
+                          ? [...selectedLocations, location]
+                          : selectedLocations.filter((l) => l !== location);
+                        
+                        // Update both state and call callback
+                        setSelectedLocations?.(updatedLocations);
+                        onSelectedLocationsChange?.(updatedLocations);
+                      }}
+                    />
+                    <Label htmlFor={`location-${location}`} className="text-sm">{location}</Label>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-1 mt-2">
             {selectedLocations.map((location) => (
               <Badge key={location} variant="secondary" className="text-xs">
-                {location} ({radius} mi)
+                {location}
               </Badge>
             ))}
           </div>
@@ -447,6 +479,12 @@ export function LocationSelector({
       </TabsContent>
 
       <TabsContent value="districts" className="space-y-4">
+        {error && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-800" />
+            <p className="text-amber-800 text-sm">{error}</p>
+          </div>
+        )}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Input
@@ -455,34 +493,99 @@ export function LocationSelector({
               onChange={(e) => setSearchDistrict(e.target.value)}
               className="flex-1"
             />
-            <Button variant="outline" onClick={toggleAllDistricts} size="sm">
-              {selectedDistricts.length === districts.length ? "Deselect All" : "Select All"}
+            <Button variant="outline" onClick={toggleAllDistricts} size="sm" disabled={loading}>
+              {selectedDistricts.length === locationData.district.length ? "Deselect All" : "Select All"}
             </Button>
           </div>
 
           <div className="max-h-60 overflow-y-auto border rounded-md p-2">
-            {filteredDistricts.map((district) => (
-              <div key={district} className="flex items-center space-x-2 py-1">
-                <Checkbox
-                  id={`district-${district}`}
-                  checked={selectedDistricts.includes(district)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedDistricts?.([...selectedDistricts, district])
-                    } else {
-                      setSelectedDistricts?.(selectedDistricts.filter((d) => d !== district))
-                    }
-                  }}
-                />
-                <Label htmlFor={`district-${district}`}>{district}</Label>
+            {loading ? (
+              <div className="flex justify-center items-center h-20">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
               </div>
-            ))}
+            ) : (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {filteredDistricts.map((district) => (
+                  <div key={district} className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      id={`district-${district}`}
+                      checked={selectedDistricts.includes(district)}
+                      onCheckedChange={(checked) => {
+                        const updatedDistricts = checked
+                          ? [...selectedDistricts, district]
+                          : selectedDistricts.filter((d) => d !== district);
+                        
+                        // Update both state and call callback
+                        setSelectedDistricts?.(updatedDistricts);
+                        onSelectedDistrictsChange?.(updatedDistricts);
+                      }}
+                    />
+                    <Label htmlFor={`district-${district}`} className="text-sm">{district}</Label>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-1 mt-2">
             {selectedDistricts.map((district) => (
               <Badge key={district} variant="secondary" className="text-xs">
                 {district}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="points-of-interest" className="space-y-4">
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4">
+          <p className="text-amber-800 text-sm">Note: The Points of Interest functionality is not yet implemented. This feature will be available in a future update.</p>
+        </div>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Search points of interest..."
+              value={searchPOI}
+              onChange={(e) => setSearchPOI(e.target.value)}
+              className="flex-1"
+            />
+            <Button variant="outline" onClick={toggleAllPointsOfInterest} size="sm">
+              {selectedPointsOfInterest.length === pointsOfInterest.length ? "Deselect All" : "Select All"}
+            </Button>
+          </div>
+
+          <div className="max-h-60 overflow-y-auto border rounded-md p-2">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {filteredPointsOfInterest.map((poi) => (
+                <div key={poi} className="flex items-center space-x-2 py-1">
+                  <Checkbox
+                    id={`poi-${poi}`}
+                    checked={selectedPointsOfInterest.includes(poi)}
+                    onCheckedChange={(checked) => {
+                      const updatedPOIs = checked
+                        ? [...selectedPointsOfInterest, poi]
+                        : selectedPointsOfInterest.filter((p) => p !== poi);
+                      
+                      // Update both state and call callback
+                      setSelectedPointsOfInterest?.(updatedPOIs);
+                      onSelectedPointsOfInterestChange?.(updatedPOIs);
+                    }}
+                  />
+                  <Label htmlFor={`poi-${poi}`} className="text-sm">{poi}</Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Radius (miles) (Not Functional): {poiRadius}</Label>
+            <Slider value={[poiRadius]} min={1} max={50} step={1} onValueChange={([value]) => setPoiRadius(value)} />
+          </div>
+
+          <div className="flex flex-wrap gap-1 mt-2">
+            {selectedPointsOfInterest.map((poi) => (
+              <Badge key={poi} variant="secondary" className="text-xs">
+                {poi} ({poiRadius} mi)
               </Badge>
             ))}
           </div>

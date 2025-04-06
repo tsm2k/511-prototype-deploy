@@ -1,86 +1,25 @@
 "use client"
 
 import "leaflet/dist/leaflet.css"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AppTopbar } from "@/components/app-topbar"
 import { SelectorPanel } from "@/components/selector-panel"
 import { MapView } from "@/components/map-view"
 import { PlaceholderPage } from "@/components/placeholder-page"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
-
-interface LaneBlockage {
-  insideShoulderAffected: boolean
-  outsideShoulderAffected: boolean
-  allLanesAffected: boolean
-  exitRampAffected: boolean
-  entranceRampAffected: boolean
-  lanesAffected: number[]
-}
-
-interface CarEvent {
-  id: number
-  eventType: string
-  route: string
-  lat: number
-  lon: number
-  priorityLevel: number
-  eventStatus: string
-  dateStart: number
-  dateEnd: number | null
-  positiveLaneBlockageType: string
-  negativeLaneBlockageType: string
-  positiveLaneBlockage: LaneBlockage
-  negativeLaneBlockage: LaneBlockage
-  locationDetails: {
-    city: string[]
-    county: string[]
-    district: string[]
-  }
-}
+import { Button } from "@/components/ui/button"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export default function Home() {
   const [activeView, setActiveView] = useState<string>("map")
-  const [filteredCarEvents, setFilteredCarEvents] = useState<CarEvent[]>([])
+  // Removed filteredCarEvents state since we're no longer using map markers
+  const [isFiltersPanelCollapsed, setIsFiltersPanelCollapsed] = useState(false)
   const [selectedDatasets, setSelectedDatasets] = useState<{
-    carEvents: string[]
-    laneBlockages: {
-      blockType: string[]
-      allLanesAffected: string[]
-      lanesAffected: {
-        positive: number[]
-        negative: number[]
-      }
-      additionalFilters: {
-        negative_exit_ramp_affected: boolean[]
-        negative_entrance_ramp_affected: boolean[]
-        positive_exit_ramp_affected: boolean[]
-        positive_entrance_ramp_affected: boolean[]
-        negative_inside_shoulder_affected: boolean[]
-        negative_outside_shoulder_affected: boolean[]
-        positive_inside_shoulder_affected: boolean[]
-        positive_outside_shoulder_affected: boolean[]
-      }
-    }
+
+
   }>({
-    carEvents: [],
-    laneBlockages: {
-      blockType: [],
-      allLanesAffected: [],
-      lanesAffected: {
-        positive: [],
-        negative: []
-      },
-      additionalFilters: {
-        negative_exit_ramp_affected: [],
-        negative_entrance_ramp_affected: [],
-        positive_exit_ramp_affected: [],
-        positive_entrance_ramp_affected: [],
-        negative_inside_shoulder_affected: [],
-        negative_outside_shoulder_affected: [],
-        positive_inside_shoulder_affected: [],
-        positive_outside_shoulder_affected: []
-      }
-    }
+
+
   })
   
   // Handler for changing the active view
@@ -88,26 +27,102 @@ export default function Home() {
     setActiveView(view)
   }
   
+  // Toggle filters panel collapsed state
+  const toggleFiltersPanel = () => {
+    setIsFiltersPanelCollapsed(!isFiltersPanelCollapsed)
+  }
+  
+  // Effect to handle manual resizing
+  useEffect(() => {
+    const handleResize = () => {
+      const panel = document.querySelector('[data-panel-id="filters-panel"]')
+      if (panel) {
+        const width = panel.getBoundingClientRect().width
+        const windowWidth = window.innerWidth
+        const percentage = (width / windowWidth) * 100
+        
+        // If panel is very small, consider it collapsed
+        if (percentage < 10) {
+          setIsFiltersPanelCollapsed(true)
+        } else {
+          setIsFiltersPanelCollapsed(false)
+        }
+      }
+    }
+    
+    // Add resize observer to detect manual resizing
+    const resizeObserver = new ResizeObserver(handleResize)
+    const panel = document.querySelector('[data-panel-id="filters-panel"]')
+    if (panel) {
+      resizeObserver.observe(panel)
+    }
+    
+    return () => {
+      if (panel) {
+        resizeObserver.unobserve(panel)
+      }
+      resizeObserver.disconnect()
+    }
+  }, [])
+  
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden">
       <AppTopbar activeView={activeView} onViewChange={handleViewChange} />
       <div className="flex-1 overflow-hidden">
         {activeView === "map" && (
-          <ResizablePanelGroup direction="horizontal">
-            <ResizablePanel defaultSize={30} minSize={15} collapsible={true} collapsedSize={15}>
-              <SelectorPanel 
-                onFilteredDataChange={setFilteredCarEvents} 
-                onSelectedDatasetsChange={setSelectedDatasets}
-              />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={70}>
-              <MapView 
-                carEvents={filteredCarEvents} 
-                selectedDatasets={selectedDatasets}
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+          <div className="relative h-full">
+            <ResizablePanelGroup direction="horizontal">
+              {isFiltersPanelCollapsed ? (
+                <ResizablePanel 
+                  defaultSize={5} 
+                  minSize={5} 
+                  maxSize={5}
+                  className="!w-[50px] !min-w-[50px] !max-w-[50px] flex items-center justify-center"
+                  data-panel-id="collapsed-panel"
+                >
+                  <div className="h-full w-full flex flex-col items-center pt-16 bg-white">
+                    <div className="writing-vertical text-lg font-medium text-gray-700 mb-4">Data Filters</div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="mt-2 bg-white/80 hover:bg-white shadow-sm border rounded-full"
+                      onClick={toggleFiltersPanel}
+                      aria-label="Expand filters panel"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </ResizablePanel>
+              ) : (
+                <ResizablePanel 
+                  defaultSize={32} 
+                  minSize={32} 
+                  maxSize={50}
+                  className="min-w-[300px]"
+                  data-panel-id="filters-panel"
+                >
+                  <div className="h-full relative">
+                    <SelectorPanel 
+                   />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white shadow-sm border rounded-full"
+                      onClick={toggleFiltersPanel}
+                      aria-label="Collapse filters panel"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </ResizablePanel>
+              )}
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={isFiltersPanelCollapsed ? 95 : 68}>
+                <MapView 
+                />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
         )}
         
         {activeView === "chart" && (
