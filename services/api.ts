@@ -98,6 +98,7 @@ export interface DatasetAttributeMetadata {
   subattribute_id: number | null;
   attribute_category: string;
   attribute_category_description: string;
+  attribute_ui_priority?: number; // Priority for UI display (1-4: primary, 5-8: additional, 10: hidden)
 }
 
 /**

@@ -1,24 +1,31 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { ColorMultiSelect, type ColorMultiSelectOption } from "@/components/ui/color-multiselect";
 import { fetchDataSourcesMetadata, mapDataSourceToOption } from "@/services/api";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Props for the dynamic dataset selector
 interface DynamicDatasetSelectorProps {
   selectedDatasets: string[];
   onSelectedDatasetsChange: (datasets: string[]) => void;
+  getSummaryRef?: { getSummary: (() => string) | null };
 }
 
 export function DynamicDatasetSelector({
   selectedDatasets,
   onSelectedDatasetsChange,
+  getSummaryRef,
 }: DynamicDatasetSelectorProps) {
   // State for the multi-select dropdown
   const [availableDatasets, setAvailableDatasets] = useState<ColorMultiSelectOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+
 
   // Fetch available datasets from API
   useEffect(() => {
@@ -59,9 +66,72 @@ export function DynamicDatasetSelector({
     }
   };
 
+  // Get a summary of the current dataset selections
+  const getDatasetSummary = useCallback(() => {
+    if (selectedDatasets.length === 0) {
+      return "No datasets selected";
+    }
+
+    // Find the display names for the selected datasets
+    const selectedOptions = availableDatasets.filter(option => 
+      selectedDatasets.includes(option.value)
+    );
+
+    if (selectedOptions.length <= 3) {
+      return selectedOptions.map(option => option.label).join(", ");
+    } else {
+      return `${selectedOptions.slice(0, 2).map(option => option.label).join(", ")} + ${selectedOptions.length - 2} more`;
+    }
+  }, [selectedDatasets, availableDatasets]);
+
+  // For external access to the summary
+  useEffect(() => {
+    if (getSummaryRef) {
+      getSummaryRef.getSummary = getDatasetSummary;
+    }
+    
+    return () => {
+      if (getSummaryRef) {
+        getSummaryRef.getSummary = null;
+      }
+    };
+  }, [getDatasetSummary, getSummaryRef]);
+
   // Render the dataset selector
   return (
     <div className="space-y-4">
+      {/* Current Selections */}
+      {/* <div className="space-y-2">
+        <h3 className="text-sm font-medium">Current Selections</h3>
+        <div className="min-h-[40px] p-2 border rounded-md bg-slate-50">
+          {selectedDatasets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No datasets selected yet</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {availableDatasets
+                .filter(dataset => selectedDatasets.includes(dataset.value))
+                .map((dataset) => (
+                  <Badge 
+                    key={dataset.value}
+                    variant="outline" 
+                    className="px-2 py-1 flex items-center gap-1 bg-white"
+                  >
+                    <span>{dataset.label}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => handleDatasetChange(selectedDatasets.filter(id => id !== dataset.value))}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+            </div>
+          )}
+        </div>
+      </div> */}
+
       {isLoading ? (
         <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md">
           Loading available datasets...
@@ -72,49 +142,12 @@ export function DynamicDatasetSelector({
         </div>
       ) : (
         <>
-          <div className="flex justify-end mb-2">
-            <InfoTooltip content={
-              <div className="space-y-1 max-w-[250px]">
-                <p>Choose one or more datasets to display on the map</p>
-                <ul className="list-disc pl-4 text-xs">
-                  {availableDatasets.map(dataset => (
-                    <li key={dataset.value}>
-                      <strong>{dataset.label}</strong>: {dataset.description}
-                      {dataset.source && (
-                        <div className="text-xs text-gray-500">
-                          Source: {
-                            dataset.href ? (
-                              <a 
-                                href={dataset.href} 
-                                className="text-blue-600 hover:underline" 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                              >
-                                {dataset.source}
-                              </a>
-                            ) : dataset.source
-                          }
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            } />
-          </div>
-
           <ColorMultiSelect
             options={availableDatasets}
             selected={selectedDatasets}
             onChange={handleDatasetChange}
             placeholder="Select datasets..."
           />
-
-          {selectedDatasets.length === 0 && (
-            <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md mt-4">
-              No datasets selected. Please select at least one dataset from the dropdown above.
-            </div>
-          )}
         </>
       )}
     </div>

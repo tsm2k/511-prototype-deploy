@@ -10,7 +10,7 @@ import { DynamicDatasetSelector } from "@/components/selectors/dynamic-dataset-s
 import { DatasetAttributeFilters } from "@/components/selectors/dataset-attribute-filters"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { executeQuery } from "@/services/api"
+import { executeQuery, fetchDataSourcesMetadata, type DataSourceMetadata } from "@/services/api"
 import { buildQueryRequest } from "@/services/query-builder"
 import { LocationFilter, TimeFilter } from "@/types/filters"
 
@@ -356,8 +356,9 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
     return `Selected: ${allLocations.slice(0, 2).join(", ")} + ${allLocations.length - 2} more`;
   }
 
-  // Create a reference to store the getSummary function from TimeframeSelector
+  // Create references to store the getSummary functions from selector components
   const timeframeSummaryRef = { getSummary: null as null | (() => string) }
+  const datasetSummaryRef = { getSummary: null as null | (() => string) }
   
   const getTimeframeOverview = (filter: Filter) => {
     // Check if we have timeframe selections
@@ -439,6 +440,51 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
     }
     
     return "No timeframe selected";
+  }
+  
+  // State to store dataset metadata for name lookups
+  const [datasetMetadata, setDatasetMetadata] = useState<Record<string, string>>({});
+
+  // Fetch dataset metadata for proper name display
+  useEffect(() => {
+    const fetchDatasetNames = async () => {
+      try {
+        const datasources = await fetchDataSourcesMetadata();
+        const metadataMap = datasources.reduce((acc: Record<string, string>, source: DataSourceMetadata) => {
+          acc[source.datasource_tablename] = source.datasource_name;
+          return acc;
+        }, {} as Record<string, string>);
+        setDatasetMetadata(metadataMap);
+      } catch (error) {
+        console.error('Error fetching dataset metadata:', error);
+      }
+    };
+
+    fetchDatasetNames();
+  }, []);
+
+  // Function to get a summary of the selected datasets
+  const getDatasetOverview = (filter: Filter) => {
+    // Check if we have access to the getSummary function from the DynamicDatasetSelector component
+    if (datasetSummaryRef.getSummary) {
+      return "Datasets: " + datasetSummaryRef.getSummary();
+    }
+    
+    // Fallback implementation if the reference is not available
+    if (filter.selectedDatasets.length === 0) {
+      return "No datasets selected";
+    }
+    
+    // Map table names to display names using the metadata
+    const datasetDisplayNames = filter.selectedDatasets.map(tableName => 
+      datasetMetadata[tableName] || tableName
+    );
+    
+    if (datasetDisplayNames.length <= 3) {
+      return "Datasets: " + datasetDisplayNames.join(", ");
+    }
+    
+    return "Datasets: " + `${datasetDisplayNames.slice(0, 2).join(", ")} + ${datasetDisplayNames.length - 2} more`;
   }
   
   // Execute query against the API based on active filters
@@ -635,10 +681,10 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                     <Calendar className="h-4 w-4 mr-1 mt-0.5" />
                     <span><strong>Timeframe:</strong> {getTimeframeOverview(filter)}</span>
                   </div>
-                  {/* <div className="flex items-start">
+                  <div className="flex items-start">
                     <Database className="h-4 w-4 mr-1 mt-0.5" />
                     <span><strong>Datasets:</strong> {getDatasetOverview(filter)}</span>
-                  </div> */}
+                  </div>
                 </div>
               )}
             </CardHeader>
@@ -767,11 +813,11 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                       </div>
                       {filter.openSelector === 'dataset' ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                     </div>
-                    {/* {filter.openSelector !== 'dataset' && (
+                    {filter.openSelector !== 'dataset' && (
                       <div className="mt-2 text-sm text-muted-foreground">
                         {getDatasetOverview(filter)}
                       </div>
-                    )} */}
+                    )}
                   </CardHeader>
                   {filter.openSelector === 'dataset' && (
                     <CardContent className="pt-2">
@@ -782,6 +828,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                             f.id === filter.id ? {...f, selectedDatasets: datasets} : f
                           ));
                         }}
+                        getSummaryRef={datasetSummaryRef}
                       />
                       
                       {/* Dataset Attribute Filters */}

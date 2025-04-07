@@ -1,14 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/ui/info-tooltip"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, X } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { AlertCircle, X, Check, ChevronsUpDown } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AttributeFilter } from "@/components/selectors/attribute-filter"
 import { AttributeRangeFilter } from "@/components/selectors/attribute-range-filter"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import { 
   fetchDatasetAttributesMetadata, 
   fetchDataSourcesMetadata,
@@ -28,7 +33,201 @@ interface DatasetAttributeFiltersProps {
 interface AttributeWithDataSource extends DatasetAttributeMetadata {
   datasource_name: string;
   datasource_tablename: string;
-  attribute_ui_priority?: number;
+  attribute_ui_priority: number;
+}
+
+// Interface for the IntegerDropdownMultiselect component
+interface IntegerDropdownMultiselectProps {
+  attributeName?: string;
+  attributeColumnName: string;
+  tableName: string;
+  onFilterChange: (columnName: string, values: string[]) => void;
+  selectedValues?: string[];
+}
+
+// Dropdown multiselector component for integer attributes with 8 or fewer values
+function IntegerDropdownMultiselect({
+  attributeName,
+  attributeColumnName,
+  tableName,
+  onFilterChange,
+  selectedValues = []
+}: IntegerDropdownMultiselectProps) {
+  const [availableValues, setAvailableValues] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(selectedValues);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  // Fetch available values for this attribute
+  useEffect(() => {
+    const fetchValues = async () => {
+      setIsLoading(true);
+      try {
+        const values = await fetchAttributeFilterValues(tableName, [attributeColumnName]);
+        if (values && values[attributeColumnName]) {
+          setAvailableValues(values[attributeColumnName]);
+          setError(null);
+        } else {
+          setError("No values found for this attribute");
+          setAvailableValues([]);
+        }
+      } catch (err) {
+        setError("Failed to fetch attribute values");
+        console.error(err);
+        setAvailableValues([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchValues();
+  }, [tableName, attributeColumnName]);
+
+  // Sync with parent component's selectedValues
+  useEffect(() => {
+    setSelected(selectedValues);
+  }, [selectedValues]);
+
+  // Update parent component when selection changes
+  const updateParent = (newSelection: string[]) => {
+    setSelected(newSelection);
+    onFilterChange(attributeColumnName, newSelection);
+  };
+
+  // Handle selection of a value
+  const handleSelect = (value: string) => {
+    const newSelection = selected.includes(value)
+      ? selected.filter(v => v !== value)
+      : [...selected, value];
+    updateParent(newSelection);
+  };
+
+  // Handle select/deselect all
+  const handleSelectAll = () => {
+    updateParent(availableValues);
+  };
+
+  const handleDeselectAll = () => {
+    updateParent([]);
+  };
+
+  // Determine if all values are selected
+  const allSelected = availableValues.length > 0 && 
+    availableValues.every(value => selected.includes(value));
+
+  // Get a summary of selected values for display
+  const getSelectionSummary = () => {
+    if (selected.length === 0) {
+      return "Select values...";
+    }
+    
+    if (selected.length <= 2) {
+      return selected.join(", ");
+    }
+    
+    return `${selected.length} selected`;
+  };
+
+  return (
+    <div className="space-y-2 w-full">
+      
+      {isLoading ? (
+        <div className="p-2 text-center text-muted-foreground bg-gray-50 border rounded-md">
+          Loading...
+        </div>
+      ) : error ? (
+        <div className="p-2 text-center text-red-500 bg-red-50 border border-red-200 rounded-md">
+          {error}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={open}
+                  className="w-full justify-between"
+                >
+                  <span className="truncate">{getSelectionSummary()}</span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search values..." />
+                  <CommandEmpty>No values found.</CommandEmpty>
+                  <div className="border-t px-2 py-1.5">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="flex items-center gap-1 text-xs h-8 w-full justify-start"
+                      onClick={allSelected ? handleDeselectAll : handleSelectAll}
+                    >
+                      {allSelected ? (
+                        <>
+                          <X className="h-3 w-3" /> Deselect All
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3 w-3" /> Select All
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <CommandGroup className="max-h-[200px] overflow-auto">
+                    {availableValues.map((value) => (
+                      <CommandItem
+                        key={value}
+                        value={value}
+                        onSelect={() => handleSelect(value)}
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <div className={cn(
+                            "flex h-4 w-4 items-center justify-center rounded-sm border",
+                            selected.includes(value) ? "bg-primary border-primary" : "opacity-50"
+                          )}>
+                            {selected.includes(value) && (
+                              <Check className="h-3 w-3 text-primary-foreground" />
+                            )}
+                          </div>
+                          <span>{value}</span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+          
+          {selected.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {selected.map(value => (
+                <Badge 
+                  key={value}
+                  variant="secondary" 
+                  className="px-2 py-1 flex items-center gap-1"
+                >
+                  <span>{value}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 hover:bg-transparent"
+                    onClick={() => handleSelect(value)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function DatasetAttributeFilters({
@@ -43,6 +242,7 @@ export function DatasetAttributeFilters({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [attributeValueCounts, setAttributeValueCounts] = useState<Record<string, Record<string, number>>>({});
+  const [datasetDisplayNames, setDatasetDisplayNames] = useState<Record<string, string>>({}); // Map dataset IDs to display names
 
   // Fetch datasources first
   useEffect(() => {
@@ -88,7 +288,8 @@ export function DatasetAttributeFilters({
             attributesWithSource.push({
               ...attr,
               datasource_name: datasource.datasource_name,
-              datasource_tablename: datasource.datasource_tablename
+              datasource_tablename: datasource.datasource_tablename,
+              attribute_ui_priority: attr.attribute_ui_priority || 5 // Default to 5 if not provided
             });
           }
         }
@@ -97,6 +298,13 @@ export function DatasetAttributeFilters({
         const filteredAttributes = attributesWithSource.filter(attr => 
           selectedDatasets.includes(attr.datasource_tablename)
         );
+        
+        // Create a mapping of dataset IDs to their display names
+        const displayNamesMap: Record<string, string> = {};
+        filteredAttributes.forEach(attr => {
+          displayNamesMap[attr.datasource_tablename] = attr.datasource_name;
+        });
+        setDatasetDisplayNames(displayNamesMap);
         
         if (filteredAttributes.length > 0) {
           setAttributes(filteredAttributes);
@@ -162,9 +370,14 @@ export function DatasetAttributeFilters({
     fetchAttributes();
   }, [selectedDatasets, dataSources]);
 
-  // Group attributes by dataset
+  // Group attributes by dataset, filtering out attributes with priority 10
   const attributesByDataset = attributes.reduce<Record<string, AttributeWithDataSource[]>>(
     (acc, attr) => {
+      // Skip attributes with priority 10 (hidden)
+      if (attr.attribute_ui_priority === 10) {
+        return acc;
+      }
+      
       if (!acc[attr.datasource_tablename]) {
         acc[attr.datasource_tablename] = [];
       }
@@ -211,7 +424,7 @@ export function DatasetAttributeFilters({
                   value={datasetId}
                   className="flex-shrink-0 flex items-center gap-1 relative pr-7"
                 >
-                  {datasetId}
+                  {datasetDisplayNames[datasetId] || datasetId}
                   <div
                     role="button"
                     tabIndex={0}
@@ -263,15 +476,17 @@ export function DatasetAttributeFilters({
             
             {selectedDatasets.map((datasetId) => (
               <TabsContent key={datasetId} value={datasetId} className="space-y-4">
-                <h3 className="text-lg font-medium">Filter Options</h3>
-                
-                {attributesByDataset[datasetId]?.length > 0 ? (
-                  <>
-                    {/* Select All / Deselect All buttons */}
-                    <div className="flex justify-end mb-4 space-x-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4 w-full">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-base font-medium text-gray-800">Filter Options</h4>
+                  </div>
+                  
+                  {attributesByDataset[datasetId]?.length > 0 && (
+                    <div className="flex items-center gap-2">
                       <Button 
                         variant="outline" 
                         size="sm"
+                        className="text-sm"
                         onClick={async () => {
                           // Select all values for all attributes in this dataset
                           for (const attribute of attributesByDataset[datasetId]) {
@@ -301,6 +516,7 @@ export function DatasetAttributeFilters({
                       <Button 
                         variant="outline" 
                         size="sm"
+                        className="text-sm"
                         onClick={() => {
                           // Deselect all values for all attributes in this dataset
                           const updatedFilters = { ...selectedFilters };
@@ -317,68 +533,104 @@ export function DatasetAttributeFilters({
                         Deselect All
                       </Button>
                     </div>
-                    
-                    <div className="grid grid-cols-1 gap-6">
-                      {/* High Priority Attributes (1-4) */}
-                      {attributesByDataset[datasetId]
-                        .filter(attr => (attr.attribute_ui_priority ?? 5) >= 1 && (attr.attribute_ui_priority ?? 5) <= 4)
-                        .sort((a, b) => (a.attribute_ui_priority ?? 5) - (b.attribute_ui_priority ?? 5))
-                        .map((attribute) => (
-                          <div key={`${attribute.attribute_column_name}-${attribute.attribute_ui_name}`} className="space-y-1">
-                            <div className="flex items-center gap-1">
-                              {/* Check if attribute is an integer type with more than 8 values */}
-                              {attribute.attribute_logical_datatype_description === "Integer" && 
-                               attributeValueCounts[datasetId]?.[attribute.attribute_column_name] > 8 ? (
-                                <AttributeRangeFilter
-                                  attributeName={attribute.attribute_ui_name}
-                                  attributeColumnName={attribute.attribute_column_name}
-                                  tableName={attribute.datasource_tablename}
-                                  onFilterChange={(columnName, values) => 
-                                    handleAttributeFilterChange(datasetId, columnName, values)
-                                  }
-                                  selectedValues={
-                                    selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                  }
-                                />
-                              ) : (
-                                <AttributeFilter
-                                  attributeName={attribute.attribute_ui_name}
-                                  attributeColumnName={attribute.attribute_column_name}
-                                  tableName={attribute.datasource_tablename}
-                                  onFilterChange={(columnName, values) => 
-                                    handleAttributeFilterChange(datasetId, columnName, values)
-                                  }
-                                  selectedValues={
-                                    selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                  }
-                                />
-                              )}
-                              {attribute.attribute_category_description && (
-                                <InfoTooltip content={
-                                  <div className="max-w-[250px]">
-                                    <p><strong>{attribute.attribute_ui_name}:</strong> {attribute.attribute_category_description}</p>
-                                    {attribute.attribute_logical_datatype_description && (
-                                      <p className="mt-1"><strong>Type:</strong> {attribute.attribute_logical_datatype_description}</p>
-                                    )}
-                                  </div>
-                                } />
-                              )}
+                  )}
+                </div>
+
+                {attributesByDataset[datasetId]?.length > 0 ? (
+                    <div className="space-y-6 w-full mt-2">
+                      {/* Primary Filters (Priority 1-4) */}
+                      <div className="grid grid-cols-1 gap-6 w-full flex-grow">
+                        {attributesByDataset[datasetId]
+                          .filter(attribute => 
+                            attribute.attribute_ui_priority >= 1 && 
+                            attribute.attribute_ui_priority <= 4
+                          )
+                          .sort((a, b) => a.attribute_ui_priority - b.attribute_ui_priority)
+                          .map((attribute) => (
+                            <div key={`${attribute.attribute_column_name}-${attribute.attribute_ui_name}`} className="space-y-1 w-full">
+                              <div className="flex flex-col w-full">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Label className="font-sm">{attribute.attribute_ui_name}</Label>
+                                  {attribute.attribute_category_description && (
+                                    <InfoTooltip content={
+                                      <div className="max-w-[250px]">
+                                        <p>{attribute.attribute_category_description}</p>
+                                      </div>
+                                    } />
+                                  )}
+                                </div>
+                                {/* Handle different attribute types */}
+                                {attribute.attribute_logical_datatype_description === "Integer" ? (
+                                  attributeValueCounts[datasetId]?.[attribute.attribute_column_name] > 8 ? (
+                                    <AttributeRangeFilter
+                                      attributeName={attribute.attribute_ui_name}
+                                      attributeColumnName={attribute.attribute_column_name}
+                                      tableName={attribute.datasource_tablename}
+                                      onFilterChange={(columnName, values) => 
+                                        handleAttributeFilterChange(datasetId, columnName, values)
+                                      }
+                                      selectedValues={
+                                        selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                      }
+                                    />
+                                  ) : (
+                                    /* Dropdown multiselector for integer attributes with 8 or fewer values */
+                                    <IntegerDropdownMultiselect
+                                      attributeColumnName={attribute.attribute_column_name}
+                                      tableName={attribute.datasource_tablename}
+                                      onFilterChange={(columnName: string, values: string[]) => 
+                                        handleAttributeFilterChange(datasetId, columnName, values)
+                                      }
+                                      selectedValues={
+                                        selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                      }
+                                    />
+                                  )
+                                ) : (
+                                  <AttributeFilter
+                                    attributeColumnName={attribute.attribute_column_name}
+                                    tableName={attribute.datasource_tablename}
+                                    onFilterChange={(columnName, values) => 
+                                      handleAttributeFilterChange(datasetId, columnName, values)
+                                    }
+                                    selectedValues={
+                                      selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                    }
+                                  />
+                                )}
+
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                      </div>
                       
-                      {/* Additional Filters Section (5-9) */}
-                      {attributesByDataset[datasetId].some(attr => (attr.attribute_ui_priority ?? 5) >= 5 && (attr.attribute_ui_priority ?? 5) <= 9) && (
-                        <div className="mt-6">
-                          <details className="border rounded-md p-2">
-                            <summary className="font-medium cursor-pointer p-2">Additional Filters</summary>
-                            <div className="mt-4 space-y-4">
+                      {/* Additional Filters (Priority 5-8) */}
+                      {attributesByDataset[datasetId]?.some(attr => 
+                        attr.attribute_ui_priority >= 5 && attr.attribute_ui_priority <= 8
+                      ) && (
+                        <div className="border rounded-md px-2 py-2 w-full">
+                          <details className="cursor-pointer">
+                            <summary className="font-medium text-sm mb-3">Additional Filters</summary>
+                            <div className="grid grid-cols-1 gap-6 mt-4 w-full flex-grow">
                               {attributesByDataset[datasetId]
-                                .filter(attr => (attr.attribute_ui_priority ?? 5) >= 5 && (attr.attribute_ui_priority ?? 5) <= 9)
-                                .sort((a, b) => (a.attribute_ui_priority ?? 5) - (b.attribute_ui_priority ?? 5))
+                                .filter(attribute => 
+                                  attribute.attribute_ui_priority >= 5 && 
+                                  attribute.attribute_ui_priority <= 8
+                                )
+                                .sort((a, b) => a.attribute_ui_priority - b.attribute_ui_priority)
                                 .map((attribute) => (
-                                  <div key={`${attribute.attribute_column_name}-${attribute.attribute_ui_name}`} className="space-y-1">
-                                    <div className="flex items-center gap-1">
+                                  <div key={`${attribute.attribute_column_name}-${attribute.attribute_ui_name}`} className="space-y-1 w-full">
+                                    <div className="flex flex-col w-full">
+                                      <div className="flex items-center gap-1 mb-1">
+                                        <Label className="font-sm">{attribute.attribute_ui_name}</Label>
+                                        {attribute.attribute_category_description && (
+                                          <InfoTooltip content={
+                                            <div className="max-w-[250px]">
+                                              <p>{attribute.attribute_category_description}</p>
+                                            </div>
+                                          } />
+                                        )}
+                                      </div>
                                       {/* Check if attribute is an integer type with more than 8 values */}
                                       {attribute.attribute_logical_datatype_description === "Integer" && 
                                        attributeValueCounts[datasetId]?.[attribute.attribute_column_name] > 8 ? (
@@ -395,7 +647,6 @@ export function DatasetAttributeFilters({
                                         />
                                       ) : (
                                         <AttributeFilter
-                                          attributeName={attribute.attribute_ui_name}
                                           attributeColumnName={attribute.attribute_column_name}
                                           tableName={attribute.datasource_tablename}
                                           onFilterChange={(columnName, values) => 
@@ -406,16 +657,7 @@ export function DatasetAttributeFilters({
                                           }
                                         />
                                       )}
-                                      {attribute.attribute_category_description && (
-                                        <InfoTooltip content={
-                                          <div className="max-w-[250px]">
-                                            <p><strong>{attribute.attribute_ui_name}:</strong> {attribute.attribute_category_description}</p>
-                                            {attribute.attribute_logical_datatype_description && (
-                                              <p className="mt-1"><strong>Type:</strong> {attribute.attribute_logical_datatype_description}</p>
-                                            )}
-                                          </div>
-                                        } />
-                                      )}
+
                                     </div>
                                   </div>
                                 ))}
@@ -424,17 +666,19 @@ export function DatasetAttributeFilters({
                         </div>
                       )}
                     </div>
-                  </>
                 ) : (
                   <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md">
                     No attributes available for this dataset
                   </div>
                 )}
               </TabsContent>
+              
             ))}
           </Tabs>
+          
         )}
       </CardContent>
+      
     </Card>
   );
 }

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { fetchAttributeFilterValues } from "@/services/api"
 
 interface AttributeFilterProps {
-  attributeName: string;
+  attributeName?: string;
   attributeColumnName: string;
   tableName: string;
   onFilterChange: (columnName: string, values: string[]) => void;
@@ -19,7 +19,8 @@ interface AttributeFilterProps {
 
 // Helper function to determine appropriate height based on number of values
 function getScrollAreaHeight(valueCount: number): string {
-  if (valueCount <= 3) return 'h-[100px]';
+  if (valueCount <= 2) return 'h-[80px]';
+  if (valueCount <= 4) return 'h-[120px]';
   if (valueCount <= 6) return 'h-[140px]';
   if (valueCount <= 10) return 'h-[180px]';
   return 'h-[200px]';
@@ -103,6 +104,9 @@ export function AttributeFilter({
   // Check if this is a small attribute set (few options)
   const isSmallAttributeSet = !isLoading && !error && availableValues.length <= 5;
   
+  // Check if this is a very small set (2-3 options) where we don't need a Select All button
+  const isVerySmallSet = !isLoading && !error && availableValues.length <= 3;
+  
   // Check if this is a boolean attribute (only has true/false values)
   const isBooleanAttribute = !isLoading && !error && 
     availableValues.length <= 2 && 
@@ -111,27 +115,29 @@ export function AttributeFilter({
   // Render a compact filter if it's a boolean or small attribute set
   if (isBooleanAttribute || isSmallAttributeSet) {
     return (
-      <div className="space-y-2">
-        <Label className="font-medium">{attributeName}</Label>
+      <div className="space-y-2 w-full">
+        {attributeName && <Label className="font-medium">{attributeName}</Label>}
         
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex items-center gap-1 text-xs h-8"
-            onClick={allSelected ? handleDeselectAll : handleSelectAll}
-          >
-            {allSelected ? (
-              <>
-                <X className="h-3 w-3" /> Deselect All
-              </>
-            ) : (
-              <>
-                <Check className="h-3 w-3" /> Select All
-              </>
-            )}
-          </Button>
-        </div>
+        {!isVerySmallSet && (
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 text-xs h-8"
+              onClick={allSelected ? handleDeselectAll : handleSelectAll}
+            >
+              {allSelected ? (
+                <>
+                  <X className="h-3 w-3" /> Deselect All
+                </>
+              ) : (
+                <>
+                  <Check className="h-3 w-3" /> Select All
+                </>
+              )}
+            </Button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="p-2 text-center text-muted-foreground bg-gray-50 border rounded-md">
@@ -142,7 +148,7 @@ export function AttributeFilter({
             {error}
           </div>
         ) : (
-          <div className="flex flex-wrap gap-3 mt-2">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 w-full">
             {availableValues.map((value) => (
               <div key={value} className="flex items-center">
                 <Checkbox
@@ -153,7 +159,7 @@ export function AttributeFilter({
                 />
                 <label
                   htmlFor={`${attributeColumnName}-${value}`}
-                  className="text-sm font-medium"
+                  className="text-sm truncate"
                 >
                   {value}
                 </label>
@@ -167,39 +173,41 @@ export function AttributeFilter({
   
   // Standard filter for non-boolean attributes
   return (
-    <div className="space-y-2">
-      <Label className="font-medium">{attributeName}</Label>
+    <div className="space-y-2 w-full flex-grow">
+      {attributeName && <Label className="font-medium">{attributeName}</Label>}
       
       {/* Search and Select/Deselect All */}
-      <div className="space-y-2">
-        <div className="relative">
+      <div className="space-y-2 w-full">
+        <div className="relative w-full">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Find..."
-            className="pl-8"
+            className="pl-8 w-full"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex items-center gap-1 text-xs h-8"
-            onClick={allSelected ? handleDeselectAll : handleSelectAll}
-          >
-            {allSelected ? (
-              <>
-                <X className="h-3 w-3" /> Deselect All
-              </>
-            ) : (
-              <>
-                <Check className="h-3 w-3" /> Select All
-              </>
-            )}
-          </Button>
-        </div>
+        {!isVerySmallSet && (
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 text-xs h-8"
+              onClick={allSelected ? handleDeselectAll : handleSelectAll}
+            >
+              {allSelected ? (
+                <>
+                  <X className="h-3 w-3" /> Deselect All
+                </>
+              ) : (
+                <>
+                  <Check className="h-3 w-3" /> Select All
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Values List */}
@@ -212,10 +220,10 @@ export function AttributeFilter({
           {error}
         </div>
       ) : (
-        <ScrollArea className={`${getScrollAreaHeight(filteredValues.length)} border rounded-md p-2`}>
-          <div className="space-y-1">
+        <ScrollArea className={`${getScrollAreaHeight(filteredValues.length)} border rounded-md p-2 w-full`}>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 w-full">
             {filteredValues.length === 0 ? (
-              <div className="p-2 text-center text-muted-foreground">
+              <div className="p-2 text-center text-muted-foreground col-span-2">
                 No values match your search
               </div>
             ) : (
@@ -228,7 +236,7 @@ export function AttributeFilter({
                   />
                   <label
                     htmlFor={`${attributeColumnName}-${value}`}
-                    className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 truncate"
                   >
                     {value}
                   </label>

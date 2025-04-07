@@ -123,7 +123,6 @@ export function AttributeRangeFilter({
 
   return (
     <div className="space-y-4 w-full max-w-xl text-left">
-      <Label className="font-medium">{attributeName}</Label>
       
       {isLoading ? (
         <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md">
