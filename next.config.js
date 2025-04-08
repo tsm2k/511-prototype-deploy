@@ -16,8 +16,5 @@ const nextConfig = {
   basePath: `/${repo}`,
   assetPrefix: `/${repo}/`,
   trailingSlash: true,
-}
-
-module.exports = nextConfig
-  
+}  
   
