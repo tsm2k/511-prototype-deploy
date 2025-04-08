@@ -58,7 +58,12 @@ export const buildQueryRequest = (
     const tableQuery: TableQuery = {};
     
     // Determine columns to include
-    const selectedColumns = columnsToInclude?.[datasetId] || ['*']; // Default to all columns
+    let selectedColumns = columnsToInclude?.[datasetId] || ['*']; // Default to all columns
+    
+    // Ensure readable_coordinates is included for map visualization
+    if (selectedColumns.length > 0 && !selectedColumns.includes('*') && !selectedColumns.includes('readable_coordinates')) {
+      selectedColumns = [...selectedColumns, 'readable_coordinates'];
+    }
     
     // Build dataset-specific filters
     const datasetFilterExpressions: QueryExpression[] = [];
@@ -92,63 +97,84 @@ export const buildQueryRequest = (
   });
   
   // Build spatial join conditions from location filters
-  const spatialJoinConditions: QueryFilter[] = [];
+  // We'll create a single filter with all expressions and the correct logic between them
+  const spatialExpressions: QueryExpression[] = [];
+  let spatialLogic: 'AND' | 'OR' = locationFilters.logic || 'AND';
   
+  // Add route expressions if any
   if (locationFilters.route && locationFilters.route.length > 0) {
-    spatialJoinConditions.push({
-      expressions: [{
-        column: 'route',
-        operator: locationFilters.route.length === 1 ? '=' : 'IN',
-        value: locationFilters.route.length === 1 ? locationFilters.route[0] : locationFilters.route
-      }],
-      logic: 'AND'
+    spatialExpressions.push({
+      column: 'route',
+      operator: locationFilters.route.length === 1 ? '=' : 'IN',
+      value: locationFilters.route.length === 1 ? locationFilters.route[0] : locationFilters.route
     });
   }
   
+  // Add region expressions if any
   if (locationFilters.region && locationFilters.region.length > 0) {
-    spatialJoinConditions.push({
-      expressions: [{
-        column: 'region',
-        operator: locationFilters.region.length === 1 ? '=' : 'IN',
-        value: locationFilters.region.length === 1 ? locationFilters.region[0] : locationFilters.region
-      }],
-      logic: 'AND'
+    spatialExpressions.push({
+      column: 'region',
+      operator: locationFilters.region.length === 1 ? '=' : 'IN',
+      value: locationFilters.region.length === 1 ? locationFilters.region[0] : locationFilters.region
     });
   }
   
+  // Add county expressions if any
   if (locationFilters.county && locationFilters.county.length > 0) {
+    spatialExpressions.push({
+      column: 'county',
+      operator: locationFilters.county.length === 1 ? '=' : 'IN',
+      value: locationFilters.county.length === 1 ? locationFilters.county[0] : locationFilters.county
+    });
+  }
+  
+  // Add city expressions if any
+  if (locationFilters.city && locationFilters.city.length > 0) {
+    spatialExpressions.push({
+      column: 'city',
+      operator: locationFilters.city.length === 1 ? '=' : 'IN',
+      value: locationFilters.city.length === 1 ? locationFilters.city[0] : locationFilters.city
+    });
+  }
+  
+  // Create a single spatial join condition with all expressions and the correct logic
+  const spatialJoinConditions: QueryFilter[] = [];
+  if (spatialExpressions.length > 0) {
     spatialJoinConditions.push({
-      expressions: [{
-        column: 'county',
-        operator: locationFilters.county.length === 1 ? '=' : 'IN',
-        value: locationFilters.county.length === 1 ? locationFilters.county[0] : locationFilters.county
-      }],
-      logic: 'AND'
+      expressions: spatialExpressions,
+      logic: spatialLogic
     });
   }
   
   // Build temporal join conditions from time filters
-  const temporalJoinConditions: QueryFilter[] = [];
+  // We'll create a single filter with all time expressions and the correct logic between them
+  const temporalExpressions: QueryExpression[] = [];
+  let temporalLogic: 'AND' | 'OR' = timeFilters.logic || 'AND';
   
+  // Add start date expression if available
   if (timeFilters.startDate) {
-    temporalJoinConditions.push({
-      expressions: [{
-        column: 'date_start',
-        operator: '>=',
-        value: timeFilters.startDate
-      }],
-      logic: 'AND'
+    temporalExpressions.push({
+      column: 'date_start',
+      operator: '>=',
+      value: timeFilters.startDate
     });
   }
   
+  // Add end date expression if available
   if (timeFilters.endDate) {
+    temporalExpressions.push({
+      column: 'date_start',
+      operator: '<=',
+      value: timeFilters.endDate
+    });
+  }
+  
+  // Create a single temporal join condition with all expressions and the correct logic
+  const temporalJoinConditions: QueryFilter[] = [];
+  if (temporalExpressions.length > 0) {
     temporalJoinConditions.push({
-      expressions: [{
-        column: 'date_start',
-        operator: '<=',
-        value: timeFilters.endDate
-      }],
-      logic: 'AND'
+      expressions: temporalExpressions,
+      logic: temporalLogic
     });
   }
   

@@ -477,13 +477,13 @@ export function DatasetAttributeFilters({
             {selectedDatasets.map((datasetId) => (
               <TabsContent key={datasetId} value={datasetId} className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-4 w-full">
-                  <div className="flex items-center gap-2">
+                  {/* <div className="flex items-center gap-2">
                     <h4 className="text-base font-medium text-gray-800">Filter Options</h4>
-                  </div>
+                  </div> */}
                   
                   {attributesByDataset[datasetId]?.length > 0 && (
                     <div className="flex items-center gap-2">
-                      <Button 
+                      {/* <Button 
                         variant="outline" 
                         size="sm"
                         className="text-sm"
@@ -531,7 +531,7 @@ export function DatasetAttributeFilters({
                         }}
                       >
                         Deselect All
-                      </Button>
+                      </Button> */}
                     </div>
                   )}
                 </div>

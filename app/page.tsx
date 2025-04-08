@@ -12,11 +12,23 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export default function Home() {
   const [activeView, setActiveView] = useState<string>("map")
-  // Removed filteredCarEvents state since we're no longer using map markers
   const [isFiltersPanelCollapsed, setIsFiltersPanelCollapsed] = useState(false)
+  const [mapData, setMapData] = useState<any>(null)
+  
+  // Listen for map data updates from the SelectorPanel
+  useEffect(() => {
+    const handleMapDataUpdated = (event: CustomEvent) => {
+      setMapData(event.detail);
+    };
+    
+    window.addEventListener('map-data-updated', handleMapDataUpdated as EventListener);
+    
+    return () => {
+      window.removeEventListener('map-data-updated', handleMapDataUpdated as EventListener);
+    };
+  }, []);
+  
   const [selectedDatasets, setSelectedDatasets] = useState<{
-
-
   }>({
 
 
@@ -102,8 +114,7 @@ export default function Home() {
                   data-panel-id="filters-panel"
                 >
                   <div className="h-full relative">
-                    <SelectorPanel 
-                   />
+                    <SelectorPanel />
                     <Button
                       variant="ghost"
                       size="icon"
@@ -119,6 +130,7 @@ export default function Home() {
               <ResizableHandle withHandle />
               <ResizablePanel defaultSize={isFiltersPanelCollapsed ? 95 : 68}>
                 <MapView 
+                  queryResults={mapData}
                 />
               </ResizablePanel>
             </ResizablePanelGroup>

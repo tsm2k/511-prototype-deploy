@@ -1,18 +1,21 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2, Filter as FilterIcon } from "lucide-react"
+import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2, Filter as FilterIcon, Info, BarChart, AlertTriangle } from "lucide-react"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { TimeframeSelector, TimeframeSelection } from "@/components/selectors/timeframe-selector"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LocationSelector } from "@/components/selectors/location-selector"
 import { DynamicDatasetSelector } from "@/components/selectors/dynamic-dataset-selector"
 import { DatasetAttributeFilters } from "@/components/selectors/dataset-attribute-filters"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { executeQuery, fetchDataSourcesMetadata, type DataSourceMetadata } from "@/services/api"
 import { buildQueryRequest } from "@/services/query-builder"
 import { LocationFilter, TimeFilter } from "@/types/filters"
+import { useToast } from "@/hooks/use-toast"
 
 // Simple Spinner component
 const Spinner = ({ className }: { className?: string }) => (
@@ -173,7 +176,11 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
+  const { toast } = useToast()
+  
+  // State for results display
+  const [isResultsOpen, setIsResultsOpen] = useState(false)
+  const [resultsSummary, setResultsSummary] = useState<{total: number, byDataset: Record<string, number>}>({total: 0, byDataset: {}})
   
   // Helper function to create a new empty filter
   const createEmptyFilter = useCallback((): Filter => ({
@@ -487,6 +494,9 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
     return "Datasets: " + `${datasetDisplayNames.slice(0, 2).join(", ")} + ${datasetDisplayNames.length - 2} more`;
   }
   
+  // State to store query results for map visualization
+  const [queryResults, setQueryResults] = useState<any>(null);
+  
   // Execute query against the API based on active filters
   const executeFilterQuery = async () => {
     setIsLoading(true);
@@ -504,17 +514,78 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       
       // Build location filter from active filter
       const locationFilter: LocationFilter = {
-        route: activeFilter.locations.roads,
-        region: activeFilter.locations.districts,
+        route: [],
+        region: [],
         county: [],
-        city: activeFilter.locations.cities
+        city: []
       };
+      
+      // Process location selections if available
+      if (activeFilter.locationSelections && activeFilter.locationSelections.length > 0) {
+        // Find the operator between location selections (default to AND if not specified)
+        let operator: 'AND' | 'OR' = 'AND';
+        
+        // Look for an operator in the location selections
+        for (const selection of activeFilter.locationSelections) {
+          if (selection.operator) {
+            operator = selection.operator;
+            break; // Use the first operator found
+          }
+        }
+        
+        // Set the logic operator for the location filter
+        locationFilter.logic = operator;
+        
+        // Process each location selection
+        activeFilter.locationSelections.forEach(selection => {
+          if (selection.type === 'road' && selection.selection) {
+            const roads = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
+            if (locationFilter.route) {
+              locationFilter.route.push(...roads);
+            }
+          } else if (selection.type === 'district' && selection.selection) {
+            const districts = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
+            if (locationFilter.region) {
+              locationFilter.region.push(...districts);
+            }
+          } else if (selection.type === 'city' && selection.selection) {
+            const cities = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
+            if (locationFilter.city) {
+              locationFilter.city.push(...cities);
+            }
+          }
+        });
+      }
       
       // Build time filter from active filter
       const timeFilter: TimeFilter = {
         startDate: activeFilter.timeframe?.start,
         endDate: activeFilter.timeframe?.end
       };
+      
+      // Process timeframe selections if available
+      if (activeFilter.timeframeSelections && activeFilter.timeframeSelections.length > 0) {
+        // Find the operator between time selections (default to AND if not specified)
+        let operator: 'AND' | 'OR' = 'AND';
+        
+        // Look for an operator in the timeframe selections
+        for (const selection of activeFilter.timeframeSelections) {
+          if (selection.operator) {
+            operator = selection.operator;
+            break; // Use the first operator found
+          }
+        }
+        
+        // Set the logic operator for the time filter
+        timeFilter.logic = operator;
+        
+        // Find date range selections
+        const dateRangeSelection = activeFilter.timeframeSelections.find(s => s.type === 'dateRange');
+        if (dateRangeSelection && dateRangeSelection.range) {
+          timeFilter.startDate = format(dateRangeSelection.range.start, 'yyyy-MM-dd');
+          timeFilter.endDate = format(dateRangeSelection.range.end, 'yyyy-MM-dd');
+        }
+      }
       
       // Build query request
       const queryRequest = buildQueryRequest(
@@ -531,21 +602,83 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       
       console.log('Query results:', JSON.stringify(results, null, 2));
       
-      // Store the results
-      // setQueryResults(results);
-      
-      // Update filtered count
-      let totalResults = 0;
+      // Debug: Check if we have results and if they contain readable_coordinates
       if (results && results.results) {
-        Object.values(results.results).forEach((datasetResults: any) => {
-          if (Array.isArray(datasetResults)) {
-            totalResults += datasetResults.length;
+        Object.entries(results.results).forEach(([tableName, items]: [string, any]) => {
+          if (Array.isArray(items)) {
+            console.log(`Dataset ${tableName} has ${items.length} items`);
+            // Check first item for readable_coordinates
+            if (items.length > 0) {
+              console.log(`Sample item from ${tableName}:`, items[0]);
+              console.log(`Has readable_coordinates: ${!!items[0].readable_coordinates}`);
+              if (items[0].readable_coordinates) {
+                try {
+                  const coords = JSON.parse(items[0].readable_coordinates);
+                  console.log(`Parsed coordinates:`, coords);
+                } catch (e) {
+                  console.error(`Error parsing coordinates for ${tableName}:`, e);
+                }
+              }
+            }
           }
         });
       }
       
-      // We've removed the map marker functionality as requested
-      // The API response is still available in the queryResults state
+      // Store the results for map visualization
+      setQueryResults(results);
+      
+      // Update filtered count and prepare results summary
+      let totalResults = 0;
+      const resultsByDataset: Record<string, number> = {};
+      
+      if (results && results.results) {
+        // Handle both array and object formats of results
+        if (Array.isArray(results.results) && results.results.length > 0) {
+          // Format: results.results is an array, first item contains datasets
+          const resultsObj = results.results[0];
+          
+          if (resultsObj && typeof resultsObj === 'object') {
+            Object.entries(resultsObj).forEach(([tableName, datasetResults]: [string, any]) => {
+              if (Array.isArray(datasetResults)) {
+                const count = datasetResults.length;
+                totalResults += count;
+                resultsByDataset[tableName] = count;
+              }
+            });
+          }
+        } else if (typeof results.results === 'object') {
+          // Format: results.results is an object with dataset names as keys
+          Object.entries(results.results).forEach(([tableName, datasetResults]: [string, any]) => {
+            if (Array.isArray(datasetResults)) {
+              const count = datasetResults.length;
+              totalResults += count;
+              resultsByDataset[tableName] = count;
+            }
+          });
+        }
+      }
+      
+      // Set results summary for display in the collapsible card
+      setResultsSummary({
+        total: totalResults,
+        byDataset: resultsByDataset
+      });
+      
+      // Show toast if no results were found
+      if (totalResults === 0) {
+        toast({
+          title: "No Results Found",
+          description: "Your query did not return any results. Try adjusting your filters.",
+          variant: "destructive",
+        });
+      } else {
+        // Open the results panel when results are found
+        setIsResultsOpen(true);
+      }
+      
+      // Dispatch a custom event to notify the map view of new data
+      const mapDataEvent = new CustomEvent('map-data-updated', { detail: results });
+      window.dispatchEvent(mapDataEvent);
     } catch (err: any) {
       console.error('Error executing query:', err);
       setError(`Failed to execute query: ${err.message}`);
@@ -894,6 +1027,284 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
           )}
         </Button>
       </div>
+      
+      {/* Results Summary Card */}
+      {queryResults && (
+        <Collapsible
+          open={isResultsOpen}
+          onOpenChange={setIsResultsOpen}
+          className="w-full border rounded-md mt-4"
+        >
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center space-x-2">
+              <BarChart className="h-4 w-4 text-blue-500" />
+              <h4 className="text-sm font-medium">
+                {resultsSummary.total} Results Found
+              </h4>
+            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="p-1 h-6 w-6">
+                {isResultsOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          
+          <CollapsibleContent className="px-4 pb-4">
+            {/* Note about results vs markers */}
+            <div className="mb-3 p-2 bg-blue-50 rounded-md text-xs text-blue-700 flex items-start space-x-2">
+              <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>Not all results may appear as markers on the map if they lack valid coordinates.</span>
+            </div>
+            
+            {/* Results Summary */}
+            <div className="space-y-4">
+              {/* Dataset Breakdown */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase text-gray-500">Dataset Breakdown</h4>
+                <div className="space-y-2 pl-1">
+                  {Object.entries(resultsSummary.byDataset).map(([datasetName, count]) => {
+                    // Get a display name for the dataset
+                    const displayName = (() => {
+                      switch(datasetName) {
+                        case 'traffic_events': return 'Traffic Events';
+                        case 'lane_blockage_info': return 'Lane Blockages';
+                        case 'rest_area_info': return 'Rest Areas';
+                        case 'dynamic_message_sign_info': return 'Dynamic Message Signs';
+                        case 'traffic_parking_info': return 'Truck Parking';
+                        case 'travel_time_system_info': return 'Travel Time Signs';
+                        case 'variable_speed_limit_sign_info': return 'Variable Speed Limit Signs';
+                        case 'social_events': return 'Social Events';
+                        case 'weather_info': return 'Weather Information';
+                        default: return datasetName;
+                      }
+                    })();
+                    
+                    // Calculate percentage of total
+                    const percentage = Math.round((count / resultsSummary.total) * 100);
+                    
+                    return (
+                      <div key={datasetName} className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm">{displayName}</span>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium">{count}</span>
+                            <span className="text-xs text-gray-500">({percentage}%)</span>
+                          </div>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-600 h-1.5 rounded-full" 
+                            style={{ width: `${percentage}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Dynamic Analytics for Each Dataset */}
+              {Object.entries(resultsSummary.byDataset).map(([datasetName, count]) => {
+                if (count === 0 || !queryResults || !queryResults.results) return null;
+                
+                // Get display name for the dataset
+                const displayName = (() => {
+                  switch(datasetName) {
+                    case 'traffic_events': return 'Traffic Events';
+                    case 'lane_blockage_info': return 'Lane Blockages';
+                    case 'rest_area_info': return 'Rest Areas';
+                    case 'dynamic_message_sign_info': return 'Dynamic Message Signs';
+                    case 'traffic_parking_info': return 'Truck Parking';
+                    case 'travel_time_system_info': return 'Travel Time Signs';
+                    case 'variable_speed_limit_sign_info': return 'Variable Speed Limit Signs';
+                    case 'social_events': return 'Social Events';
+                    case 'weather_info': return 'Weather Information';
+                    default: return datasetName;
+                  }
+                })();
+                
+                // Helper function to get dataset items
+                const getDatasetItems = (dataset: string): any[] => {
+                  let items: any[] = [];
+                  if (Array.isArray(queryResults.results)) {
+                    // Format: results is an array
+                    const resultsObj = queryResults.results[0];
+                    if (resultsObj && typeof resultsObj === 'object' && Array.isArray(resultsObj[dataset])) {
+                      items = resultsObj[dataset];
+                    }
+                  } else if (typeof queryResults.results === 'object' && Array.isArray(queryResults.results[dataset])) {
+                    // Format: results is an object
+                    items = queryResults.results[dataset];
+                  }
+                  return items;
+                };
+                
+                // Get the items for this dataset
+                const datasetItems = getDatasetItems(datasetName);
+                if (datasetItems.length === 0) return null;
+                
+                // Analyze the first item to determine what fields are available
+                const sampleItem = datasetItems[0] || {};
+                const hasEventType = 'event_type' in sampleItem;
+                const hasPriority = 'priority' in sampleItem;
+                const hasLocation = 'location' in sampleItem || 'city' in sampleItem;
+                
+                // Find all available fields that might be interesting for analytics
+                const availableFields = Object.keys(sampleItem).filter(key => 
+                  typeof sampleItem[key] === 'string' || 
+                  typeof sampleItem[key] === 'number'
+                );
+                
+                return (
+                  <div key={datasetName} className="space-y-4 border-t pt-3 mt-3">
+                    <h3 className="text-sm font-medium">{displayName} Analytics</h3>
+                    
+                    {/* Event Type Analytics - if event_type field exists */}
+                    {hasEventType && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold uppercase text-gray-500">Event Types</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(() => {
+                            // Calculate event type counts
+                            const typeCounts: Record<string, number> = {};
+                            
+                            datasetItems.forEach(item => {
+                              const type = item.event_type || 'Unknown';
+                              typeCounts[type] = (typeCounts[type] || 0) + 1;
+                            });
+                            
+                            return Object.entries(typeCounts).map(([type, count]) => (
+                              <div key={type} className="flex justify-between items-center p-2 bg-blue-50 rounded-md">
+                                <span className="text-xs">{type}</span>
+                                <span className="text-xs font-semibold bg-blue-100 px-2 py-0.5 rounded-full">{count}</span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Priority Analytics - if priority field exists */}
+                    {hasPriority && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold uppercase text-gray-500">Priority Levels</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(() => {
+                            // Calculate priority counts
+                            const priorityCounts: Record<string, number> = {};
+                            
+                            datasetItems.forEach(item => {
+                              const priority = item.priority ? `Priority ${item.priority}` : 'Unknown';
+                              priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;
+                            });
+                            
+                            return Object.entries(priorityCounts).map(([priority, count]) => (
+                              <div key={priority} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
+                                <span className="text-xs">{priority}</span>
+                                <span className="text-xs font-semibold bg-blue-100 px-2 py-0.5 rounded-full">{count}</span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Location Analytics - if location or city field exists */}
+                    {hasLocation && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold uppercase text-gray-500">Top Locations</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(() => {
+                            // Calculate location counts
+                            const locationCounts: Record<string, number> = {};
+                            
+                            datasetItems.forEach(item => {
+                              const location = item.location || item.city || 'Unknown';
+                              locationCounts[location] = (locationCounts[location] || 0) + 1;
+                            });
+                            
+                            // Get top 3 locations
+                            const topLocations = Object.entries(locationCounts)
+                              .sort((a, b) => b[1] - a[1])
+                              .slice(0, 3);
+                            
+                            return topLocations.map(([location, count]) => (
+                              <div key={location} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
+                                <span className="text-xs">{location}</span>
+                                <span className="text-xs font-semibold bg-blue-100 px-2 py-0.5 rounded-full">{count}</span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Dynamic Field Analytics - for other interesting fields */}
+                    {availableFields.length > 0 && !hasEventType && !hasPriority && !hasLocation && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold uppercase text-gray-500">Key Attributes</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(() => {
+                            // Pick an interesting field for analytics
+                            const interestingField = availableFields[0];
+                            const fieldCounts: Record<string, number> = {};
+                            
+                            datasetItems.forEach(item => {
+                              const value = item[interestingField]?.toString() || 'Unknown';
+                              fieldCounts[value] = (fieldCounts[value] || 0) + 1;
+                            });
+                            
+                            // Get top values
+                            const topValues = Object.entries(fieldCounts)
+                              .sort((a, b) => b[1] - a[1])
+                              .slice(0, 6);
+                            
+                            return topValues.map(([value, count]) => (
+                              <div key={value} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
+                                <span className="text-xs">{value}</span>
+                                <span className="text-xs font-semibold bg-blue-100 px-2 py-0.5 rounded-full">{count}</span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              
+              {/* Data Insights */}
+              {resultsSummary.total > 0 && (
+                <div className="space-y-2 border-t pt-3">
+                  <h4 className="text-xs font-semibold uppercase text-gray-500">Quick Insights</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2 bg-gray-50 rounded-md">
+                      <div className="text-xs text-gray-500">Total Results</div>
+                      <div className="text-lg font-bold">{resultsSummary.total}</div>
+                    </div>
+                    <div className="p-2 bg-gray-50 rounded-md">
+                      <div className="text-xs text-gray-500">Datasets</div>
+                      <div className="text-lg font-bold">{Object.keys(resultsSummary.byDataset).length}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {resultsSummary.total === 0 && (
+                <div className="flex items-center space-x-2 text-yellow-600 mt-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-sm">No results found. Try adjusting your filters.</span>
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   )
 }

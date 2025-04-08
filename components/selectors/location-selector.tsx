@@ -380,16 +380,27 @@ export function LocationSelector({
         </div>
       </div>
 
-      <Tabs defaultValue="road" className="w-full">
-      <TabsList className="flex flex-wrap gap-2 mb-4 bg-transparent p-0">
-        <TabsTrigger value="road" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Road</TabsTrigger>
-        <TabsTrigger value="city" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">City</TabsTrigger>
-        <TabsTrigger value="districts" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Districts</TabsTrigger>
-        <TabsTrigger value="points-of-interest" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Points of Interest</TabsTrigger>
-        <TabsTrigger value="draw" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Draw</TabsTrigger>
-      </TabsList>
+      {/* Location Selection Area */}
+      <div className="flex flex-col space-y-6">
+        {/* Main Selection Area */}
+        <div className="grid grid-cols-1 gap-6">
+          {/* Location Type Selection */}
+          <div className="w-full">
+            <h3 className="text-sm font-medium mb-2">Choose by Type</h3>
+            <Tabs defaultValue="road" className="w-full">
+              <TabsList className="flex flex-wrap gap-2 mb-4 bg-transparent p-0">
+                <TabsTrigger value="road" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Road</TabsTrigger>
+                <TabsTrigger value="city" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">City</TabsTrigger>
+                <TabsTrigger value="districts" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Districts</TabsTrigger>
+                <div className="relative group">
+                  <TabsTrigger value="points-of-interest" className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300">Points of Interest</TabsTrigger>
+                  <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                    Not functional
+                  </span>
+                </div>
+              </TabsList>
 
-      <TabsContent value="road" className="space-y-4">
+            <TabsContent value="road" className="space-y-4">
         {error && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-800" />
@@ -763,9 +774,9 @@ export function LocationSelector({
       </TabsContent>
 
       <TabsContent value="points-of-interest" className="space-y-4">
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4">
+        {/* <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4">
           <p className="text-amber-800 text-sm">Note: The Points of Interest functionality is not yet implemented. This feature will be available in a future update.</p>
-        </div>
+        </div> */}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Input
@@ -817,38 +828,46 @@ export function LocationSelector({
         </div>
       </TabsContent>
 
-      <TabsContent value="draw" className="space-y-4">
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md mb-4">
-          <p className="text-amber-800 text-sm">Note: The draw functionality is not yet implemented. This feature will be available in a future update.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant={drawMode === "polygon" ? "default" : "outline"}
-            onClick={() => setDrawMode("polygon")}
-            className="flex-1"
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Draw Polygon
-          </Button>
-          <Button
-            variant={drawMode === "circle" ? "default" : "outline"}
-            onClick={() => setDrawMode("circle")}
-            className="flex-1"
-          >
-            <Circle className="mr-2 h-4 w-4" />
-            Draw Circle
-          </Button>
-        </div>
+            </Tabs>
+          </div>
+          
+          {/* Draw Section - Visually Distinct */}
+          <div className="w-full mt-4 border-t pt-4">
+            <h3 className="text-sm font-medium mb-2">Draw on Map</h3>
+            <div className="space-y-4">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                <p className="text-amber-800 text-sm">Note: The draw functionality is not yet implemented.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={drawMode === "polygon" ? "default" : "outline"}
+                  onClick={() => setDrawMode("polygon")}
+                  className="flex-1"
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Draw Polygon
+                </Button>
+                <Button
+                  variant={drawMode === "circle" ? "default" : "outline"}
+                  onClick={() => setDrawMode("circle")}
+                  className="flex-1"
+                >
+                  <Circle className="mr-2 h-4 w-4" />
+                  Draw Circle
+                </Button>
+              </div>
 
-        <div className="border rounded-md p-4 h-40 flex items-center justify-center bg-muted/50">
-          {drawMode ? (
-            <p className="text-center text-muted-foreground">Click on the map to start drawing a {drawMode}</p>
-          ) : (
-            <p className="text-center text-muted-foreground">Select a drawing mode above</p>
-          )}
+              {/* <div className="border rounded-md p-4 h-40 flex items-center justify-center bg-muted/50">
+                {drawMode ? (
+                  <p className="text-center text-muted-foreground">Click on the map to start drawing a {drawMode}</p>
+                ) : (
+                  <p className="text-center text-muted-foreground">Select a drawing mode above</p>
+                )}
+              </div> */}
+            </div>
+          </div>
         </div>
-      </TabsContent>
-    </Tabs>
+      </div>
     </div>
   )
 }

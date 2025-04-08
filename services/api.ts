@@ -199,6 +199,8 @@ export const fetchAttributeFilterValues = async (
  */
 export const executeQuery = async (queryParams: any): Promise<any> => {
   try {
+    console.log('Executing query with params:', JSON.stringify(queryParams, null, 2));
+    
     // Use the local proxy endpoint to avoid CORS issues
     const response = await fetch(`${API_PROXY_URL}/query`, {
       method: 'POST',
@@ -209,10 +211,28 @@ export const executeQuery = async (queryParams: any): Promise<any> => {
     });
     
     if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
+      const errorText = await response.text();
+      console.error('API response not OK:', response.status, errorText);
+      throw new Error(`API request failed with status ${response.status}: ${errorText}`);
     }
     
     const data = await response.json();
+    
+    // Log the structure of the response
+    console.log('API response structure:', {
+      hasResults: !!data.results,
+      resultKeys: data.results ? Object.keys(data.results) : [],
+      sampleData: data.results ? Object.entries(data.results).map(([key, value]) => {
+        const items = Array.isArray(value) ? value : [];
+        return {
+          dataset: key,
+          count: items.length,
+          sampleKeys: items.length > 0 ? Object.keys(items[0]) : [],
+          hasCoordinates: items.length > 0 ? !!items[0].readable_coordinates : false
+        };
+      }) : []
+    });
+    
     return data;
   } catch (error) {
     console.error('Error executing query:', error);

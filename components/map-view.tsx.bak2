@@ -1,0 +1,822 @@
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import mapboxgl from "mapbox-gl"
+import "mapbox-gl/dist/mapbox-gl.css"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { ChevronUp, ChevronDown, Info, AlertTriangle, Construction, Clock, Map as MapIcon } from "lucide-react"
+import { DataSourceMetadata, fetchDataSourcesMetadata } from "@/services/api"
+
+mapboxgl.accessToken = "pk.eyJ1IjoidGFuYXkyayIsImEiOiJjbTJpYnltejYwbDgwMmpvbm1lNG16enV3In0.fwcdZ3I-cofnDOR9m1Hqng"
+
+// Define interface for map data
+interface MapData {
+  id: number;
+  datasource_metadata_id: number;
+  datasource_tablename: string;
+  event_type?: string;
+  priority_level?: number;
+  event_status?: string;
+  route?: string;
+  start_mile_marker?: number;
+  end_mile_marker?: number;
+  readable_coordinates: string;
+  [key: string]: any; // Allow for additional properties
+}
+
+export function MapView({ queryResults }: { queryResults?: any }) {
+  // Function to clear all markers
+  const clearMarkers = () => {
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
+    
+    popupsRef.current.forEach(popup => popup.remove());
+    popupsRef.current = [];
+  };
+  
+  const mapContainer = useRef<HTMLDivElement>(null)
+  const map = useRef<mapboxgl.Map | null>(null)
+  const markersRef = useRef<mapboxgl.Marker[]>([])
+  const popupsRef = useRef<mapboxgl.Popup[]>([])
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  
+  // State for dataset metadata (for display names and colors)
+  const [datasetMetadata, setDatasetMetadata] = useState<Record<string, DataSourceMetadata>>({})
+  const [visibleLayers, setVisibleLayers] = useState<Record<string, boolean>>({})
+  const [showLegend, setShowLegend] = useState(true)
+
+
+  // Fetch dataset metadata for display names and colors
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const datasources = await fetchDataSourcesMetadata();
+        const metadataMap = datasources.reduce((acc, source) => {
+          acc[source.datasource_tablename] = source;
+          return acc;
+        }, {} as Record<string, DataSourceMetadata>);
+        setDatasetMetadata(metadataMap);
+        
+        // Initialize all layers as visible
+        const initialVisibility = datasources.reduce((acc, source) => {
+          acc[source.datasource_tablename] = true;
+          return acc;
+        }, {} as Record<string, boolean>);
+        setVisibleLayers(initialVisibility);
+      } catch (error) {
+        console.error('Error fetching dataset metadata:', error);
+      }
+    };
+
+    fetchMetadata();
+  }, []);
+
+  // Initialize map
+  useEffect(() => {
+    if (map.current) return
+
+    if (mapContainer.current) {
+      console.log('Initializing map...');
+      mapboxgl.accessToken = 'pk.eyJ1IjoidGFuYXkyayIsImEiOiJjbTJpYnltejYwbDgwMmpvbm1lNG16enV3In0.fwcdZ3I-cofnDOR9m1Hqng';
+      
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/navigation-day-v1",
+        center: [-86.1581, 39.7684],
+        zoom: 7
+      })
+
+      // Add event listeners to track map loading
+      map.current.on('load', () => {
+        console.log('Map loaded successfully!');
+      });
+
+      map.current.on('error', (e) => {
+        console.error('Map error:', e);
+      });
+
+      map.current.addControl(new mapboxgl.NavigationControl(), "bottom-right")
+      
+      // Create a ResizeObserver to watch for container size changes
+      resizeObserverRef.current = new ResizeObserver(() => {
+        if (map.current) {
+          // Slight delay to ensure the container has fully resized
+          setTimeout(() => {
+            if (map.current) {
+              map.current.resize()
+            }
+          }, 0)
+        }
+      })
+      
+      // Start observing the map container
+      resizeObserverRef.current.observe(mapContainer.current)
+    }
+
+    return () => {
+      // Clean up the observer and map when component unmounts
+      if (resizeObserverRef.current && mapContainer.current) {
+        resizeObserverRef.current.unobserve(mapContainer.current)
+        resizeObserverRef.current.disconnect()
+      }
+      
+      if (map.current) {
+        map.current.remove()
+        map.current = null
+      }
+    }
+  }, []);
+  // Process and display map data when queryResults change
+  useEffect(() => {
+    if (!map.current || !queryResults) {
+      console.log('Map or query results not available', { map: !!map.current, queryResults: !!queryResults });
+      return;
+    }
+    
+    console.log('Processing query results for map visualization:', queryResults);
+    
+    // Clear existing markers
+    clearMarkers();
+    
+    // Check if the results are in the expected format
+    // Based on the console logs, the API returns an array in results[0][tableName]
+    if (queryResults.results && Array.isArray(queryResults.results) && queryResults.results.length > 0) {
+      const resultsObj = queryResults.results[0];
+      
+      if (resultsObj && typeof resultsObj === 'object') {
+        // Process each dataset's results
+        Object.entries(resultsObj).forEach(([tableName, items]) => {
+          if (!Array.isArray(items) || !visibleLayers[tableName]) {
+            console.log(`Skipping ${tableName}: Array check: ${Array.isArray(items)}, Visible: ${!!visibleLayers[tableName]}`);
+            return;
+          }
+      
+          console.log(`Processing ${items.length} items from dataset ${tableName}`);
+          
+          // Process each item in the dataset
+          items.forEach((item: any) => {
+            try {
+          // Add the tableName to the item for reference
+          const mapItem: MapData = {
+            ...item,
+            datasource_tablename: tableName
+          };
+          
+          // Parse the readable_coordinates
+          if (mapItem.readable_coordinates) {
+            try {
+              // Try to parse the coordinates
+              let coordinates;
+              
+              // Handle different coordinate formats
+              if (typeof mapItem.readable_coordinates === 'string') {
+                try {
+                  // Try to parse as JSON
+                  coordinates = JSON.parse(mapItem.readable_coordinates);
+                  console.log('Successfully parsed coordinates as JSON:', coordinates);
+                } catch (jsonError) {
+                  // If JSON parsing fails, try to handle as a string format
+                  console.log('Failed to parse as JSON, trying alternative formats');
+                  
+                  // Check if it's a simple coordinate pair like "39.7684,-86.1581"
+                  const coordMatch = mapItem.readable_coordinates.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+                  if (coordMatch) {
+                    const lat = parseFloat(coordMatch[1]);
+                    const lng = parseFloat(coordMatch[2]);
+                    coordinates = {
+                      type: 'Point',
+                      coordinates: [lng, lat]
+                    };
+                    console.log('Parsed as simple coordinate pair:', coordinates);
+                  } else {
+                    console.error('Unrecognized coordinate format:', mapItem.readable_coordinates);
+                    continue;
+                  }
+                }
+              } else if (typeof mapItem.readable_coordinates === 'object') {
+                // It's already an object, use it directly
+                coordinates = mapItem.readable_coordinates;
+                console.log('Coordinates already in object format:', coordinates);
+              }
+              
+              // Add marker to map if we have valid coordinates
+              if (coordinates) {
+                addMarkerToMap(mapItem, coordinates);
+              }
+            } catch (parseError) {
+              console.error('Error processing coordinates:', mapItem.readable_coordinates, parseError);
+            }
+          } else {
+            // Check for alternative coordinate fields
+            const possibleCoordinateFields = ['coordinates', 'geometry', 'location', 'position', 'lat_long'];
+            
+            for (const field of possibleCoordinateFields) {
+              if (mapItem[field]) {
+                console.log(`Found alternative coordinate field: ${field}`, mapItem[field]);
+                try {
+                  let coordinates;
+                  if (typeof mapItem[field] === 'string') {
+                    coordinates = JSON.parse(mapItem[field]);
+                  } else {
+                    coordinates = mapItem[field];
+                  }
+                  
+                  addMarkerToMap(mapItem, coordinates);
+                  break; // Exit after successfully using an alternative field
+                } catch (e) {
+                  console.error(`Error using alternative field ${field}:`, e);
+                }
+              }
+            }
+            
+            console.warn('Item missing coordinates:', mapItem);
+          }
+        } catch (error) {
+          console.error('Error processing map item:', error);
+        }
+      });
+    });
+    }
+    // Case 2: Results are in queryResults.results (array format)
+    else if (queryResults.results && Array.isArray(queryResults.results)) {
+      console.log('Processing results from queryResults.results array');
+      
+      // Find the first array element that contains dataset results
+      const resultsObject = queryResults.results.find(item => item && typeof item === 'object');
+      
+      if (resultsObject) {
+        Object.entries(resultsObject).forEach(([tableName, items]) => {
+          if (!Array.isArray(items) || !visibleLayers[tableName]) {
+            console.log(`Skipping ${tableName}: Array check: ${Array.isArray(items)}, Visible: ${!!visibleLayers[tableName]}`);
+            return;
+          }
+          
+          console.log(`Processing ${items.length} items from dataset ${tableName}`);
+          
+          // Process each item in the dataset
+          items.forEach((item: any) => {
+            try {
+              // Add the tableName to the item for reference
+              const mapItem: MapData = {
+                ...item,
+                datasource_tablename: tableName
+              };
+              
+              // Parse the readable_coordinates
+              if (mapItem.readable_coordinates) {
+                try {
+                  // Try to parse the coordinates
+                  let coordinates;
+                  
+                  // Handle different coordinate formats
+                  if (typeof mapItem.readable_coordinates === 'string') {
+                    try {
+                      // Try to parse as JSON
+                      coordinates = JSON.parse(mapItem.readable_coordinates);
+                      console.log('Successfully parsed coordinates as JSON:', coordinates);
+                    } catch (jsonError) {
+                      // If JSON parsing fails, try to handle as a string format
+                      console.log('Failed to parse as JSON, trying alternative formats');
+                      
+                      // Check if it's a simple coordinate pair like "39.7684,-86.1581"
+                      const coordMatch = mapItem.readable_coordinates.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+                      if (coordMatch) {
+                        const lat = parseFloat(coordMatch[1]);
+                        const lng = parseFloat(coordMatch[2]);
+                        coordinates = {
+                          type: 'Point',
+                          coordinates: [lng, lat]
+                        };
+                        console.log('Parsed as simple coordinate pair:', coordinates);
+                      } else {
+                        console.error('Unrecognized coordinate format:', mapItem.readable_coordinates);
+                        continue;
+                      }
+                    }
+                  } else if (typeof mapItem.readable_coordinates === 'object') {
+                    // It's already an object, use it directly
+                    coordinates = mapItem.readable_coordinates;
+                    console.log('Coordinates already in object format:', coordinates);
+                  }
+                  
+                  // Add marker to map if we have valid coordinates
+                  if (coordinates) {
+                    addMarkerToMap(mapItem, coordinates);
+                  }
+                } catch (parseError) {
+                  console.error('Error processing coordinates:', mapItem.readable_coordinates, parseError);
+                }
+              } else {
+                // Check for alternative coordinate fields
+                const possibleCoordinateFields = ['coordinates', 'geometry', 'location', 'position', 'lat_long'];
+                
+                for (const field of possibleCoordinateFields) {
+                  if (mapItem[field]) {
+                    console.log(`Found alternative coordinate field: ${field}`, mapItem[field]);
+                    try {
+                      let coordinates;
+                      if (typeof mapItem[field] === 'string') {
+                        coordinates = JSON.parse(mapItem[field]);
+                      } else {
+                        coordinates = mapItem[field];
+                      }
+                      
+                      addMarkerToMap(mapItem, coordinates);
+                      break; // Exit the loop after successfully using an alternative field
+                    } catch (e) {
+                      console.error(`Error using alternative field ${field}:`, e);
+                    }
+                  }
+                }
+                
+                console.warn('Item missing coordinates:', mapItem);
+              }
+            } catch (error) {
+              console.error('Error processing map item:', error);
+            }
+          });
+        });
+      }
+    }
+    // Case 3: Direct results object
+    else if (typeof queryResults === 'object') {
+      console.log('Processing direct results object');
+      
+      // Try to find any arrays that might contain our data
+      Object.entries(queryResults).forEach(([key, value]) => {
+        if (key === 'results' || !value) return; // Skip if it's the results key we already checked
+        
+        if (typeof value === 'object') {
+          Object.entries(value).forEach(([tableName, items]) => {
+            if (!Array.isArray(items) || !visibleLayers[tableName]) {
+              console.log(`Skipping ${tableName}: Array check: ${Array.isArray(items)}, Visible: ${!!visibleLayers[tableName]}`);
+              return;
+            }
+            
+            console.log(`Processing ${items.length} items from dataset ${tableName}`);
+            
+            // Process each item in the dataset
+            items.forEach((item: any) => {
+              try {
+                // Add the tableName to the item for reference
+                const mapItem: MapData = {
+                  ...item,
+                  datasource_tablename: tableName
+                };
+                
+                // Parse the readable_coordinates
+                if (mapItem.readable_coordinates) {
+                  try {
+                    // Try to parse the coordinates
+                    let coordinates;
+                    
+                    // Handle different coordinate formats
+                    if (typeof mapItem.readable_coordinates === 'string') {
+                      try {
+                        // Try to parse as JSON
+                        coordinates = JSON.parse(mapItem.readable_coordinates);
+                        console.log('Successfully parsed coordinates as JSON:', coordinates);
+                      } catch (jsonError) {
+                        // If JSON parsing fails, try to handle as a string format
+                        console.log('Failed to parse as JSON, trying alternative formats');
+                        
+                        // Check if it's a simple coordinate pair like "39.7684,-86.1581"
+                        const coordMatch = mapItem.readable_coordinates.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+                        if (coordMatch) {
+                          const lat = parseFloat(coordMatch[1]);
+                          const lng = parseFloat(coordMatch[2]);
+                          coordinates = {
+                            type: 'Point',
+                            coordinates: [lng, lat]
+                          };
+                          console.log('Parsed as simple coordinate pair:', coordinates);
+                        } else {
+                          console.error('Unrecognized coordinate format:', mapItem.readable_coordinates);
+                          continue;
+                        }
+                      }
+                    } else if (typeof mapItem.readable_coordinates === 'object') {
+                      // It's already an object, use it directly
+                      coordinates = mapItem.readable_coordinates;
+                      console.log('Coordinates already in object format:', coordinates);
+                    }
+                    
+                    // Add marker to map if we have valid coordinates
+                    if (coordinates) {
+                      addMarkerToMap(mapItem, coordinates);
+                    }
+                  } catch (parseError) {
+                    console.error('Error processing coordinates:', mapItem.readable_coordinates, parseError);
+                  }
+                } else {
+                  console.warn('Item missing readable_coordinates:', mapItem);
+                }
+              } catch (error) {
+                console.error('Error processing map item:', error);
+              }
+            });
+          });
+        }
+      });
+    }
+    
+    // Fit bounds to markers if we have any
+    if (markersRef.current.length > 0 && map.current) {
+      const bounds = new mapboxgl.LngLatBounds();
+      markersRef.current.forEach(marker => {
+        bounds.extend(marker.getLngLat());
+      });
+      
+      map.current.fitBounds(bounds, {
+        padding: 50,
+        maxZoom: 15
+      });
+      
+      console.log(`Added ${markersRef.current.length} markers to the map`);
+    } else {
+      console.log('No markers to display on the map');
+    }
+  }, [queryResults, visibleLayers]);
+  
+  // Function to add a marker to the map
+  const addMarkerToMap = (item: MapData, coordinates: any) => {
+    if (!map.current) return;
+    
+    console.log('Adding marker for item:', item.id, 'with coordinates:', coordinates);
+    
+    // Determine marker position based on geometry type or format
+    let position: [number, number];
+    
+    // Handle GeoJSON format
+    if (coordinates.type === 'Point') {
+      console.log('Point geometry detected:', coordinates.coordinates);
+      position = coordinates.coordinates as [number, number];
+    } else if (coordinates.type === 'MultiLineString' && coordinates.coordinates?.length > 0) {
+      // For lines, use the first point
+      console.log('MultiLineString geometry detected, using first point:', coordinates.coordinates[0][0]);
+      position = coordinates.coordinates[0][0] as [number, number];
+    } else if (coordinates.type === 'LineString' && coordinates.coordinates?.length > 0) {
+      console.log('LineString geometry detected, using first point:', coordinates.coordinates[0]);
+      position = coordinates.coordinates[0] as [number, number];
+    } 
+    // Handle simple coordinate pairs
+    else if (Array.isArray(coordinates) && coordinates.length === 2 && 
+             typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number') {
+      console.log('Simple coordinate array detected:', coordinates);
+      position = coordinates as [number, number];
+    }
+    // Handle {lat, lng} or {latitude, longitude} format
+    else if (coordinates.lat !== undefined && coordinates.lng !== undefined) {
+      console.log('Lat/lng object format detected:', coordinates);
+      position = [coordinates.lng, coordinates.lat];
+    }
+    else if (coordinates.latitude !== undefined && coordinates.longitude !== undefined) {
+      console.log('Latitude/longitude object format detected:', coordinates);
+      position = [coordinates.longitude, coordinates.latitude];
+    }
+    // Handle raw coordinates without type
+    else if (coordinates.coordinates && Array.isArray(coordinates.coordinates)) {
+      console.log('Raw coordinates array detected:', coordinates.coordinates);
+      if (coordinates.coordinates.length === 2 && 
+          typeof coordinates.coordinates[0] === 'number' && 
+          typeof coordinates.coordinates[1] === 'number') {
+        position = coordinates.coordinates as [number, number];
+      } else if (coordinates.coordinates.length > 0 && Array.isArray(coordinates.coordinates[0])) {
+        position = coordinates.coordinates[0] as [number, number];
+      } else {
+        console.warn('Unsupported coordinates array format:', coordinates);
+        return;
+      }
+    } else {
+      console.warn('Unsupported coordinates format:', coordinates);
+      return;
+    }
+    
+    console.log('Initial position:', position);
+    
+    // Swap coordinates if needed (some GIS systems use [lat, lng] instead of [lng, lat])
+    if (position[0] > 0 && position[0] < 180 && position[1] < -30 && position[1] > -90) {
+      // This looks like [lat, lng] instead of [lng, lat], so swap them
+      console.log('Swapping coordinates from [lat, lng] to [lng, lat]');
+      position = [position[1], position[0]];
+    }
+    
+    console.log('Final position for marker:', position);
+    
+    // Create a custom marker element
+    const markerEl = document.createElement('div');
+    markerEl.className = 'custom-marker';
+    markerEl.style.width = '24px';
+    markerEl.style.height = '24px';
+    markerEl.style.borderRadius = '50%';
+    markerEl.style.display = 'flex';
+    markerEl.style.alignItems = 'center';
+    markerEl.style.justifyContent = 'center';
+    
+    // Set color based on dataset, event type, and priority level
+    const datasetColor = getDatasetColor(
+      item.datasource_tablename, 
+      item.event_type, 
+      item.priority_level ? parseInt(item.priority_level.toString()) : undefined
+    );
+    markerEl.style.backgroundColor = datasetColor;
+    markerEl.style.border = '2px solid white';
+    markerEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+    
+    // Add icon based on event type or dataset
+    const iconEl = document.createElement('div');
+    iconEl.innerHTML = getMarkerIcon(item);
+    iconEl.style.color = 'white';
+    iconEl.style.display = 'flex';
+    iconEl.style.alignItems = 'center';
+    iconEl.style.justifyContent = 'center';
+    markerEl.appendChild(iconEl);
+    
+    // Create the popup with item details
+    const popup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+      maxWidth: '300px'
+    }).setHTML(createPopupContent(item));
+    
+    popupsRef.current.push(popup);
+    
+    // Create and add the marker
+    const marker = new mapboxgl.Marker(markerEl)
+      .setLngLat(position)
+      .setPopup(popup)
+      .addTo(map.current);
+    
+    markersRef.current.push(marker);
+  };
+  
+  // Function to get dataset color
+  const getDatasetColor = (tableName: string, eventType?: string, priorityLevel?: number): string => {
+    // Color scheme for different datasets (colorblind-friendly)
+    const colorMap: Record<string, string> = {
+      'traffic_events': '#1f77b4', // Blue
+      'tpims_capacity': '#ff7f0e', // Orange
+      'tpims_spaces': '#2ca02c', // Green
+      'default': '#d62728', // Red
+    };
+    
+    // Priority-based colors (overrides other colors if present)
+    if (priorityLevel !== undefined) {
+      switch(priorityLevel) {
+        case 1: return '#ef4444'; // High priority - Red
+        case 2: return '#f59e0b'; // Medium priority - Amber
+        case 3: return '#10b981'; // Low priority - Green
+        default: break; // Fall through to other color logic
+      }
+    }
+    
+    // Event type specific colors
+    const eventTypeColors: Record<string, string> = {
+      'CONSTRUCTION': '#ff7f0e', // Orange
+      'INCIDENT': '#d62728', // Red
+      'CONGESTION': '#9467bd', // Purple
+      'SPECIAL_EVENT': '#8c564b', // Brown
+      'WEATHER': '#e377c2', // Pink
+      'CLOSURE': '#e6550d', // Dark Orange
+      'RESTRICTION': '#fd8d3c', // Light Orange
+      'CRASH': '#d62728', // Red (same as INCIDENT)
+      'ACCIDENT': '#d62728', // Red (same as INCIDENT)
+      'COLLISION': '#d62728', // Red (same as INCIDENT)
+    };
+    
+    // Check if the event type contains any of our known types (case insensitive)
+    if (eventType) {
+      const lowerEventType = eventType.toLowerCase();
+      for (const [key, color] of Object.entries(eventTypeColors)) {
+        if (lowerEventType.includes(key.toLowerCase())) {
+          return color;
+        }
+      }
+    }
+    
+    // If no match found, use dataset color
+    return colorMap[tableName] || colorMap.default;
+  };
+  
+  // Function to get marker icon based on item type
+  const getMarkerIcon = (item: MapData): string => {
+    // Default icon is a map pin
+    let iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>';
+    
+    // Traffic events icons
+    if (item.datasource_tablename === 'traffic_events' && item.event_type) {
+      const eventType = item.event_type.toLowerCase();
+      
+      // Construction/work zone
+      if (eventType.includes('construction') || eventType.includes('work') || eventType.includes('maintenance')) {
+        iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="8" rx="1"></rect><path d="M17 14v7"></path><path d="M7 14v7"></path><path d="M17 3v3"></path><path d="M7 3v3"></path><path d="M10 14 2.3 6.3"></path><path d="m14 6 7.7 7.7"></path><path d="m8 6 8 8"></path></svg>';
+      }
+      // Incident/crash/accident
+      else if (eventType.includes('incident') || eventType.includes('crash') || eventType.includes('accident') || eventType.includes('collision')) {
+        iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+      }
+      // Congestion/delay
+      else if (eventType.includes('congestion') || eventType.includes('delay') || eventType.includes('slow')) {
+        iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
+      }
+      // Closure/blocked
+      else if (eventType.includes('closure') || eventType.includes('blocked') || eventType.includes('restriction')) {
+        iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+      }
+      // Weather
+      else if (eventType.includes('weather') || eventType.includes('snow') || eventType.includes('rain') || eventType.includes('ice')) {
+        iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.2A4.5 4.5 0 0 0 17.5 8h-1.8A7 7 0 1 0 4 14.9"></path><path d="M16 14v6"></path><path d="M8 14v6"></path><path d="M12 16v6"></path></svg>';
+      }
+      // Special event
+      else if (eventType.includes('special') || eventType.includes('event')) {
+        iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8a2.83 2.83 0 0 0 4 4 4 4 0 1 1-5.66-5.66A2.83 2.83 0 0 0 12 8z"></path><circle cx="12" cy="12" r="10"></circle></svg>';
+      }
+    }
+    
+    // TPIMS capacity or spaces icons
+    if (item.datasource_tablename === 'tpims_capacity' || item.datasource_tablename === 'tpims_spaces') {
+      iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M7 10h10"></path><path d="M7 14h10"></path><path d="M9 18V6"></path></svg>';
+    }
+    
+    return iconSvg;
+  };
+  
+  // Function to create popup content
+  const createPopupContent = (item: MapData): string => {
+    // Get dataset display name and color
+    const datasetName = datasetMetadata[item.datasource_tablename]?.datasource_name || item.datasource_tablename;
+    const datasetColor = getDatasetColor(
+      item.datasource_tablename, 
+      item.event_type, 
+      item.priority_level ? parseInt(item.priority_level.toString()) : undefined
+    );
+    
+    // Start with styled header
+    let content = `<div class="p-3">
+      <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 16px; font-weight: 600; color: ${datasetColor};">${datasetName}</h3>
+      <div style="border-bottom: 1px solid #e5e7eb; margin-bottom: 8px;"></div>
+      <div class="space-y-2">`;
+    
+    // Add event-specific details for traffic events
+    if (item.datasource_tablename === 'traffic_events') {
+      // Format priority if available
+      let priorityText = item.priority_level || 'N/A';
+      if (item.priority_level) {
+        const priority = parseInt(item.priority_level.toString());
+        priorityText = priority === 1 ? 'High' : priority === 2 ? 'Medium' : priority === 3 ? 'Low' : item.priority_level;
+      }
+      
+      content += `
+        <div><span style="font-weight: 600;">Event Type:</span> ${item.event_type || 'N/A'}</div>
+        <div><span style="font-weight: 600;">Status:</span> ${item.event_status || 'N/A'}</div>
+        <div><span style="font-weight: 600;">Priority:</span> ${priorityText}</div>
+        <div><span style="font-weight: 600;">Route:</span> ${item.route || 'N/A'}</div>`;
+      
+      // Add lane information if available
+      if (item.lanes_blocked) {
+        content += `<div><span style="font-weight: 600;">Lanes Blocked:</span> ${item.lanes_blocked}</div>`;
+      }
+      
+      if (item.lanes_affected) {
+        content += `<div><span style="font-weight: 600;">Lanes Affected:</span> ${item.lanes_affected}</div>`;
+      }
+      
+      if (item.start_mile_marker) {
+        content += `<div><span style="font-weight: 600;">Mile Marker:</span> ${item.start_mile_marker}${item.end_mile_marker ? ' to ' + item.end_mile_marker : ''}</div>`;
+      }
+      
+      // Handle different date field names that might be present
+      const startDateField = item.date_start || item.start_time || item.start_date;
+      const endDateField = item.date_end || item.end_time || item.end_date;
+      
+      if (startDateField) {
+        try {
+          const startDate = new Date(startDateField);
+          content += `<div><span style="font-weight: 600;">Start Date:</span> ${startDate.toLocaleString()}</div>`;
+        } catch (e) {
+          content += `<div><span style="font-weight: 600;">Start Date:</span> ${startDateField}</div>`;
+        }
+      }
+      
+      if (endDateField) {
+        try {
+          const endDate = new Date(endDateField);
+          content += `<div><span style="font-weight: 600;">End Date:</span> ${endDate.toLocaleString()}</div>`;
+        } catch (e) {
+          content += `<div><span style="font-weight: 600;">End Date:</span> ${endDateField}</div>`;
+        }
+      }
+      
+      // Add description if available
+      if (item.description) {
+        content += `<div style="margin-top: 8px;"><span style="font-weight: 600;">Description:</span><br/>${item.description}</div>`;
+      }
+    }
+    
+    // Add TPIMS-specific details
+    if (item.datasource_tablename === 'tpims_capacity' || item.datasource_tablename === 'tpims_spaces') {
+      // Add relevant TPIMS fields
+      Object.entries(item).forEach(([key, value]) => {
+        // Skip internal fields and coordinates
+        if (['id', 'datasource_metadata_id', 'readable_coordinates', 'datasource_tablename'].includes(key)) return;
+        
+        // Format the key for display
+        const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        
+        content += `<div><span class="font-semibold">${displayKey}:</span> ${value || 'N/A'}</div>`;
+      });
+    }
+    
+    // Close the content div
+    content += `
+      </div>
+    </div>`;
+    
+    return content;
+  };
+  
+  // Toggle layer visibility
+  const toggleLayerVisibility = (tableName: string) => {
+    setVisibleLayers(prev => ({
+      ...prev,
+      [tableName]: !prev[tableName]
+    }));
+  };
+  
+  return (
+    <div className="h-full w-full relative">
+      <div ref={mapContainer} className="h-full w-full" />
+      
+      {/* Map Legend */}
+      <div className="absolute top-4 right-4 z-10">
+        <Card className="p-3 shadow-lg bg-white/90 backdrop-blur-sm w-64">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-medium text-sm">Map Legend</h3>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6" 
+              onClick={() => setShowLegend(!showLegend)}
+            >
+              {showLegend ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
+          
+          {showLegend && Object.entries(datasetMetadata).length > 0 && (
+            <div className="space-y-2">
+              {Object.entries(datasetMetadata).map(([tableName, metadata]) => (
+                <div key={tableName} className="flex items-center space-x-2">
+                  <Checkbox 
+                    id={`layer-${tableName}`}
+                    checked={visibleLayers[tableName]}
+                    onCheckedChange={() => toggleLayerVisibility(tableName)}
+                  />
+                  <div 
+                    className="w-4 h-4 rounded-full" 
+                    style={{ backgroundColor: getDatasetColor(tableName) }}
+                  />
+                  <Label 
+                    htmlFor={`layer-${tableName}`}
+                    className="text-sm font-medium"
+                  >
+                    {metadata.datasource_name}
+                  </Label>
+                </div>
+              ))}
+              
+              {/* Event type legend for traffic events */}
+              {datasetMetadata['traffic_events'] && visibleLayers['traffic_events'] && (
+                <div className="mt-2 pt-2 border-t">
+                  <h4 className="text-xs font-medium mb-1">Event Types</h4>
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: '#ff7f0e' }}>
+                        <Construction className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="text-xs">Construction</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: '#d62728' }}>
+                        <AlertTriangle className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="text-xs">Incident</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: '#1f77b4' }}>
+                        <MapIcon className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="text-xs">Other</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
