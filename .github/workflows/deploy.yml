@@ -30,7 +30,7 @@ jobs:
         with:
           static_site_generator: next
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps --force
       - name: Build with Next.js
         run: npm run build --legacy-peer-deps
       - name: List output directory
