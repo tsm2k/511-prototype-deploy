@@ -1,14 +1,4 @@
-// next.config.js
-module.exports = {
-    typescript: {
-      ignoreBuildErrors: true,
-    },
-    eslint: {
-      ignoreDuringBuilds: true,
-    },
-  }
-
-const repo = '511-prototype-deploy' // <- your GitHub repo name
+const repo = '511-prototype-deploy' // GitHub repo name
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -16,5 +6,13 @@ const nextConfig = {
   basePath: `/${repo}`,
   assetPrefix: `/${repo}/`,
   trailingSlash: true,
-}  
-  
+
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+}
+
+module.exports = nextConfig
