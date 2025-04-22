@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import mapboxgl from "mapbox-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
+import MapboxDraw from "@mapbox/mapbox-gl-draw"
+import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,6 +29,30 @@ interface MapData {
   [key: string]: any; // Allow for additional properties
 }
 
+// Helper function to calculate bounding box from polygon coordinates
+const getBoundingBox = (coordinates: number[][]) => {
+  if (!coordinates || coordinates.length === 0) return null;
+  
+  // Initialize with the first point
+  let minX = coordinates[0][0];
+  let maxX = coordinates[0][0];
+  let minY = coordinates[0][1];
+  let maxY = coordinates[0][1];
+  
+  // Find min/max for all points
+  coordinates.forEach(point => {
+    minX = Math.min(minX, point[0]);
+    maxX = Math.max(maxX, point[0]);
+    minY = Math.min(minY, point[1]);
+    maxY = Math.max(maxY, point[1]);
+  });
+  
+  return {
+    southwest: [minX, minY],
+    northeast: [maxX, maxY]
+  };
+};
+
 export function MapView({ queryResults }: { queryResults?: any }) {
   // Function to clear all markers - defined early to avoid reference errors
   const clearMarkers = () => {
@@ -43,6 +69,7 @@ export function MapView({ queryResults }: { queryResults?: any }) {
   
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
+  const drawRef = useRef<MapboxDraw | null>(null)
   const markersRef = useRef<mapboxgl.Marker[]>([])
   const popupsRef = useRef<mapboxgl.Popup[]>([])
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
@@ -51,6 +78,7 @@ export function MapView({ queryResults }: { queryResults?: any }) {
   const [datasetMetadata, setDatasetMetadata] = useState<Record<string, DataSourceMetadata>>({})
   const [visibleLayers, setVisibleLayers] = useState<Record<string, boolean>>({})
   const [showLegend, setShowLegend] = useState(true)
+  const [drawModeActive, setDrawModeActive] = useState(false)
 
   // Fetch dataset metadata for display names and colors
   useEffect(() => {
@@ -77,6 +105,39 @@ export function MapView({ queryResults }: { queryResults?: any }) {
     fetchMetadata();
   }, []);
 
+  // Listen for draw mode changes from LocationSelector
+  useEffect(() => {
+    const handleDrawModeChange = (event: CustomEvent) => {
+      console.log('Draw mode change event received:', event.detail);
+      if (map.current && drawRef.current) {
+        const { mode } = event.detail;
+        
+        if (mode === 'polygon') {
+          // Activate polygon drawing mode
+          drawRef.current.changeMode('draw_polygon');
+          setDrawModeActive(true);
+        } else if (mode === 'circle') {
+          // Activate circle drawing mode (not directly supported by MapboxDraw)
+          // For now, we'll use polygon as a fallback
+          drawRef.current.changeMode('draw_polygon');
+          setDrawModeActive(true);
+        } else {
+          // Deactivate drawing mode
+          drawRef.current.changeMode('simple_select');
+          setDrawModeActive(false);
+        }
+      }
+    };
+
+    // Add event listener for custom draw mode change event
+    window.addEventListener('location-draw-mode-change', handleDrawModeChange as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('location-draw-mode-change', handleDrawModeChange as EventListener);
+    };
+  }, []);
+  
   // Initialize map
   useEffect(() => {
     if (map.current) return;
@@ -91,10 +152,85 @@ export function MapView({ queryResults }: { queryResults?: any }) {
         center: [-86.1581, 39.7684],
         zoom: 7
       });
+      
+      // Initialize draw control
+      drawRef.current = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: {
+          polygon: true,
+          trash: true
+        },
+        defaultMode: 'simple_select'
+      });
+      
+      // Add draw control to the map
+      map.current.addControl(drawRef.current, 'top-right');
 
       // Add event listeners to track map loading
       map.current.on('load', () => {
         console.log('Map loaded successfully!');
+      });
+      
+      // Add draw event listeners
+      map.current.on('draw.create', (e: any) => {
+        console.log('Draw created:', e.features);
+        
+        // Capture the drawn polygon coordinates
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const coordinates = feature.geometry.coordinates;
+          const featureId = feature.id;
+          
+          // Dispatch event with polygon data to be received by LocationSelector
+          const event = new CustomEvent('location-polygon-drawn', {
+            detail: {
+              featureId,
+              type: feature.geometry.type,
+              coordinates,
+              boundingBox: getBoundingBox(coordinates[0]) // For polygons, use the outer ring
+            }
+          });
+          window.dispatchEvent(event);
+        }
+      });
+      
+      map.current.on('draw.update', (e: any) => {
+        console.log('Draw updated:', e.features);
+        
+        // Handle updated polygon
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const coordinates = feature.geometry.coordinates;
+          const featureId = feature.id;
+          
+          // Dispatch event with updated polygon data
+          const event = new CustomEvent('location-polygon-updated', {
+            detail: {
+              featureId,
+              type: feature.geometry.type,
+              coordinates,
+              boundingBox: getBoundingBox(coordinates[0]) // For polygons, use the outer ring
+            }
+          });
+          window.dispatchEvent(event);
+        }
+      });
+      
+      map.current.on('draw.delete', (e: any) => {
+        console.log('Draw deleted:', e.features);
+        
+        // Notify that polygons were deleted
+        if (e.features && e.features.length > 0) {
+          const featureIds = e.features.map((f: any) => f.id);
+          
+          // Dispatch event with deleted polygon IDs
+          const event = new CustomEvent('location-polygon-deleted', {
+            detail: {
+              featureIds
+            }
+          });
+          window.dispatchEvent(event);
+        }
       });
 
       map.current.on('error', (e) => {

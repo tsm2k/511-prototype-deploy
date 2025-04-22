@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css"
 import { useState, useEffect } from "react"
 import { AppTopbar } from "@/components/app-topbar"
 import { SelectorPanel } from "@/components/selector-panel"
-import { MapView } from "@/components/map-view"
+import { MapContainer } from "@/components/map-container"
 import { PlaceholderPage } from "@/components/placeholder-page"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Button } from "@/components/ui/button"
@@ -108,8 +108,8 @@ export default function Home() {
               ) : (
                 <ResizablePanel 
                   defaultSize={32} 
-                  minSize={32} 
-                  maxSize={50}
+                  minSize={37} 
+                  maxSize={45}
                   className="min-w-[300px]"
                   data-panel-id="filters-panel"
                 >
@@ -129,7 +129,7 @@ export default function Home() {
               )}
               <ResizableHandle withHandle />
               <ResizablePanel defaultSize={isFiltersPanelCollapsed ? 95 : 68}>
-                <MapView 
+                <MapContainer 
                   queryResults={mapData}
                 />
               </ResizablePanel>

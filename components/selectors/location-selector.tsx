@@ -48,6 +48,17 @@ interface MileMarkerRange {
   max: number
 }
 
+// Define the interface for polygon coordinates
+interface PolygonCoordinates {
+  featureId: string;
+  type: string;
+  coordinates: number[][][];
+  boundingBox: {
+    southwest: number[];
+    northeast: number[];
+  } | null;
+}
+
 // Define the interface for road selection with mile marker range
 interface RoadSelection {
   road: string
@@ -55,12 +66,12 @@ interface RoadSelection {
 }
 
 // Define the types of location selections
-type LocationSelectionType = "road" | "city" | "district"
+type LocationSelectionType = "road" | "city" | "district" | "polygon"
 
 // Define the interface for location selections
 interface LocationSelection {
   type: LocationSelectionType
-  selection: string | string[]
+  selection: string | string[] | PolygonCoordinates
   mileMarkerRange?: MileMarkerRange // Only for road selections
   operator?: "AND" | "OR" // Operator to use with the next selection
 }
@@ -115,6 +126,10 @@ export function LocationSelector({
   const [searchDistrict, setSearchDistrict] = useState("")
   const [searchPOI, setSearchPOI] = useState("")
   
+  // State for drawn polygons
+  const [drawnPolygons, setDrawnPolygons] = useState<PolygonCoordinates[]>([])
+  const [selectedPolygonId, setSelectedPolygonId] = useState<string | null>(null)
+  
   // State for API data
   const [locationData, setLocationData] = useState<LocationData>({
     city: [],
@@ -124,6 +139,53 @@ export function LocationSelector({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Listen for polygon drawing events from MapView
+  useEffect(() => {
+    const handlePolygonDrawn = (event: CustomEvent) => {
+      console.log('Polygon drawn event received:', event.detail);
+      // Add the new polygon to state
+      setDrawnPolygons(prev => [...prev, event.detail]);
+      // Automatically select the new polygon
+      setSelectedPolygonId(event.detail.featureId);
+      // Reset draw mode
+      setDrawMode(null);
+    };
+    
+    const handlePolygonUpdated = (event: CustomEvent) => {
+      console.log('Polygon updated event received:', event.detail);
+      // Update the polygon in state
+      setDrawnPolygons(prev => 
+        prev.map(poly => 
+          poly.featureId === event.detail.featureId ? event.detail : poly
+        )
+      );
+    };
+    
+    const handlePolygonDeleted = (event: CustomEvent) => {
+      console.log('Polygon deleted event received:', event.detail);
+      // Remove the deleted polygons from state
+      setDrawnPolygons(prev => 
+        prev.filter(poly => !event.detail.featureIds.includes(poly.featureId))
+      );
+      // Clear selection if the selected polygon was deleted
+      if (selectedPolygonId && event.detail.featureIds.includes(selectedPolygonId)) {
+        setSelectedPolygonId(null);
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('location-polygon-drawn', handlePolygonDrawn as EventListener);
+    window.addEventListener('location-polygon-updated', handlePolygonUpdated as EventListener);
+    window.addEventListener('location-polygon-deleted', handlePolygonDeleted as EventListener);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('location-polygon-drawn', handlePolygonDrawn as EventListener);
+      window.removeEventListener('location-polygon-updated', handlePolygonUpdated as EventListener);
+      window.removeEventListener('location-polygon-deleted', handlePolygonDeleted as EventListener);
+    };
+  }, []);
+  
   // Fetch location data from API
   useEffect(() => {
     const getLocationData = async () => {
@@ -323,11 +385,20 @@ export function LocationSelector({
                 let content = "";
                 
                 switch (selection.type) {
+                  case "polygon":
+                    // Handle polygon selection
+                    const polygonData = selection.selection as PolygonCoordinates;
+                    const boundingBox = polygonData.boundingBox;
+                    content = boundingBox ? 
+                      `Custom Area: SW(${boundingBox.southwest[0].toFixed(4)}, ${boundingBox.southwest[1].toFixed(4)}) - NE(${boundingBox.northeast[0].toFixed(4)}, ${boundingBox.northeast[1].toFixed(4)})` :
+                      `Custom ${polygonData.type} Area`;
+                    break;
                   case "road":
                     if (Array.isArray(selection.selection)) {
                       content = `Roads: ${selection.selection.join(", ")}`;
                     } else {
-                      const road = selection.selection;
+                      // Make sure we're dealing with a string selection
+                      const road = selection.selection as string;
                       const range = selection.mileMarkerRange;
                       content = range ? `${road} (MM ${range.min}-${range.max})` : road;
                     }
@@ -336,14 +407,14 @@ export function LocationSelector({
                     if (Array.isArray(selection.selection)) {
                       content = `Cities: ${selection.selection.join(", ")}`;
                     } else {
-                      content = `City: ${selection.selection}`;
+                      content = `City: ${selection.selection as string}`;
                     }
                     break;
                   case "district":
                     if (Array.isArray(selection.selection)) {
                       content = `Districts: ${selection.selection.join(", ")}`;
                     } else {
-                      content = `District: ${selection.selection}`;
+                      content = `District: ${selection.selection as string}`;
                     }
                     break;
                 }
@@ -835,26 +906,106 @@ export function LocationSelector({
           <div className="w-full mt-4 border-t pt-4">
             <h3 className="text-sm font-medium mb-2">Draw on Map</h3>
             <div className="space-y-4">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-                <p className="text-amber-800 text-sm">Note: The draw functionality is not yet implemented.</p>
-              </div>
+              {drawnPolygons.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="flex justify-between items-center">
+                      <p className="text-blue-800 text-sm font-medium">Drawn Areas ({drawnPolygons.length})</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          if (selectedPolygonId) {
+                            // Add the selected polygon to selections
+                            const selectedPolygon = drawnPolygons.find(p => p.featureId === selectedPolygonId);
+                            if (selectedPolygon) {
+                              const newSelection: LocationSelection = {
+                                type: "polygon",
+                                selection: selectedPolygon,
+                                operator: "AND"
+                              };
+                              onSelectionsChange?.([...selections, newSelection]);
+                              // Optionally clear selection after adding
+                              setSelectedPolygonId(null);
+                            }
+                          }
+                        }}
+                        disabled={!selectedPolygonId}
+                        className="h-7"
+                      >
+                        Add to Selections
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="max-h-[200px] overflow-y-auto border rounded-md p-2">
+                    {drawnPolygons.map((polygon) => {
+                      // Calculate a human-readable description of the polygon
+                      const boundingBox = polygon.boundingBox;
+                      const description = boundingBox ? 
+                        `Area: SW(${boundingBox.southwest[0].toFixed(4)}, ${boundingBox.southwest[1].toFixed(4)}) - NE(${boundingBox.northeast[0].toFixed(4)}, ${boundingBox.northeast[1].toFixed(4)})` :
+                        `Polygon with ${polygon.coordinates[0].length} points`;
+                        
+                      return (
+                        <div 
+                          key={polygon.featureId}
+                          className={`p-2 mb-1 rounded-md cursor-pointer ${selectedPolygonId === polygon.featureId ? 'bg-blue-100 border border-blue-300' : 'hover:bg-gray-100'}`}
+                          onClick={() => setSelectedPolygonId(polygon.featureId)}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="text-sm font-medium">Drawn {polygon.type}</div>
+                              <div className="text-xs text-gray-500">{description}</div>
+                            </div>
+                            {selectedPolygonId === polygon.featureId && (
+                              <div className="bg-blue-500 rounded-full w-2 h-2"></div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                  <p className="text-amber-800 text-sm">Draw a polygon on the map to define a custom area.</p>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   variant={drawMode === "polygon" ? "default" : "outline"}
-                  onClick={() => setDrawMode("polygon")}
+                  onClick={() => {
+                    const newMode = drawMode === "polygon" ? null : "polygon";
+                    setDrawMode(newMode);
+                    
+                    // Dispatch custom event to notify MapView component
+                    const event = new CustomEvent('location-draw-mode-change', {
+                      detail: { mode: newMode }
+                    });
+                    window.dispatchEvent(event);
+                  }}
                   className="flex-1"
                 >
                   <Pencil className="mr-2 h-4 w-4" />
-                  Draw Polygon
+                  {drawMode === "polygon" ? "Cancel Drawing" : "Draw Polygon"}
                 </Button>
-                <Button
+                {/* <Button
                   variant={drawMode === "circle" ? "default" : "outline"}
-                  onClick={() => setDrawMode("circle")}
+                  onClick={() => {
+                    const newMode = drawMode === "circle" ? null : "circle";
+                    setDrawMode(newMode);
+                    
+                    // Dispatch custom event to notify MapView component
+                    const event = new CustomEvent('location-draw-mode-change', {
+                      detail: { mode: newMode }
+                    });
+                    window.dispatchEvent(event);
+                  }}
                   className="flex-1"
                 >
                   <Circle className="mr-2 h-4 w-4" />
-                  Draw Circle
-                </Button>
+                  {drawMode === "circle" ? "Cancel Drawing" : "Draw Circle"}
+                </Button> */}
               </div>
 
               {/* <div className="border rounded-md p-4 h-40 flex items-center justify-center bg-muted/50">

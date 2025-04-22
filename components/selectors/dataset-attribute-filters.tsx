@@ -273,7 +273,7 @@ export function DatasetAttributeFilters({
         
         for (const attr of allAttributes) {
           // Extract datasource ID from the URL
-          // Example: http://in-engr-tasi02.it.purdue.edu/api/511DataAnalytics/datasources-metadata/1/
+          // Example: http://127.0.0.1:5005/api/511DataAnalytics/datasources-metadata/1/
           const urlParts = attr.datasource_metadata.split('/');
           const datasourceId = urlParts[urlParts.length - 2]; // Get the ID from the URL
           

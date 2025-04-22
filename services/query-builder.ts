@@ -5,9 +5,10 @@ const API_PROXY_URL = '/api/proxy';
 
 // Types for query construction
 export interface QueryExpression {
-  column: string;
-  operator: string;
-  value: string | string[] | number | null;
+  column?: string;
+  operator?: string;
+  value?: string | string[] | number | null | Record<string, any>;
+  spatial_function?: string;
 }
 
 export interface QueryFilter {
@@ -146,6 +147,39 @@ export const buildQueryRequest = (
     });
   }
   
+  // Add polygon spatial conditions if any
+  if (locationFilters.polygons && locationFilters.polygons.length > 0) {
+    // For each polygon, create a separate spatial join condition with ST_Intersects
+    locationFilters.polygons.forEach(polygon => {
+      // Create a GeoJSON-compatible polygon structure
+      const geoJsonPolygon = {
+        type: 'Polygon',
+        coordinates: polygon.coordinates
+      };
+      
+      // Create a spatial expression for this polygon
+      const polygonExpression: QueryExpression = {
+        spatial_function: 'ST_Intersects',
+        value: geoJsonPolygon
+      };
+      
+      // Add this as a separate spatial join condition
+      // If there are other spatial conditions (like routes), combine them with this polygon
+      if (spatialJoinConditions.length > 0) {
+        // Add the polygon to the existing spatial join condition
+        spatialJoinConditions[0].expressions.push(polygonExpression);
+      } else {
+        // Create a new spatial join condition for this polygon
+        spatialJoinConditions.push({
+          expressions: [polygonExpression],
+          logic: 'AND'
+        });
+      }
+      
+      console.log('Added polygon to spatial join conditions:', geoJsonPolygon);
+    });
+  }
+  
   // Build temporal join conditions from time filters
   // We'll create a single filter with all time expressions and the correct logic between them
   const temporalExpressions: QueryExpression[] = [];
@@ -154,7 +188,7 @@ export const buildQueryRequest = (
   // Add start date expression if available
   if (timeFilters.startDate) {
     temporalExpressions.push({
-      column: 'date_start',
+      column: 'data_retrieval_timestamp',
       operator: '>=',
       value: timeFilters.startDate
     });
@@ -163,7 +197,7 @@ export const buildQueryRequest = (
   // Add end date expression if available
   if (timeFilters.endDate) {
     temporalExpressions.push({
-      column: 'date_start',
+      column: 'data_retrieval_timestamp',
       operator: '<=',
       value: timeFilters.endDate
     });

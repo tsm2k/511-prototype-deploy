@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2, Filter as FilterIcon, Info, BarChart, AlertTriangle } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { TimeframeSelector, TimeframeSelection } from "@/components/selectors/timeframe-selector"
@@ -12,6 +13,16 @@ import { DatasetAttributeFilters } from "@/components/selectors/dataset-attribut
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { executeQuery, fetchDataSourcesMetadata, type DataSourceMetadata } from "@/services/api"
 import { buildQueryRequest } from "@/services/query-builder"
 import { LocationFilter, TimeFilter } from "@/types/filters"
@@ -29,12 +40,15 @@ const Spinner = ({ className }: { className?: string }) => (
 
 // Define the structure for a single filter
 // Define the types of location selections
-type LocationSelectionType = "road" | "city" | "district"
+type LocationSelectionType = "road" | "city" | "district" | "polygon"
+
+// Import PolygonCoordinates from types/filters
+import { PolygonCoordinates } from '@/types/filters';
 
 // Define the interface for location selections
 interface LocationSelection {
   type: LocationSelectionType
-  selection: string | string[]
+  selection: string | string[] | PolygonCoordinates
   mileMarkerRange?: { min: number; max: number } // Only for road selections
   operator?: "AND" | "OR" // Operator to use with the next selection
 }
@@ -173,8 +187,8 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   // State for managing multiple filters
   const [filters, setFilters] = useState<Filter[]>([])
   const [activeFilterId, setActiveFilterId] = useState<string | null>(null)
-
   const [isLoading, setIsLoading] = useState(false)
+  const [filterToDelete, setFilterToDelete] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   
@@ -267,6 +281,13 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       
       return updatedFilters
     })
+    // Reset the filter to delete
+    setFilterToDelete(null)
+  }
+  
+  // Function to open the delete confirmation dialog
+  const confirmDeleteFilter = (filterId: string) => {
+    setFilterToDelete(filterId)
   }
   
   // Function to rename a filter
@@ -536,22 +557,44 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         // Set the logic operator for the location filter
         locationFilter.logic = operator;
         
+        // Initialize polygons array if needed
+        if (!locationFilter.polygons) {
+          locationFilter.polygons = [];
+        }
+        
         // Process each location selection
         activeFilter.locationSelections.forEach(selection => {
           if (selection.type === 'road' && selection.selection) {
-            const roads = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
-            if (locationFilter.route) {
-              locationFilter.route.push(...roads);
+            // Make sure we're dealing with string or string[] for roads
+            if (typeof selection.selection === 'string' || Array.isArray(selection.selection)) {
+              const roads = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
+              if (locationFilter.route) {
+                locationFilter.route.push(...roads);
+              }
             }
           } else if (selection.type === 'district' && selection.selection) {
-            const districts = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
-            if (locationFilter.region) {
-              locationFilter.region.push(...districts);
+            // Make sure we're dealing with string or string[] for districts
+            if (typeof selection.selection === 'string' || Array.isArray(selection.selection)) {
+              const districts = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
+              if (locationFilter.region) {
+                locationFilter.region.push(...districts);
+              }
             }
           } else if (selection.type === 'city' && selection.selection) {
-            const cities = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
-            if (locationFilter.city) {
-              locationFilter.city.push(...cities);
+            // Make sure we're dealing with string or string[] for cities
+            if (typeof selection.selection === 'string' || Array.isArray(selection.selection)) {
+              const cities = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
+              if (locationFilter.city) {
+                locationFilter.city.push(...cities);
+              }
+            }
+          } else if (selection.type === 'polygon' && selection.selection && !Array.isArray(selection.selection) && typeof selection.selection !== 'string') {
+            // Handle polygon selection
+            // The selection is a PolygonCoordinates object
+            const polygonData = selection.selection as any; // Using any to avoid type issues
+            if (polygonData.coordinates && polygonData.type) {
+              locationFilter.polygons?.push(polygonData);
+              console.log('Added polygon to location filter:', polygonData);
             }
           }
         });
@@ -611,9 +654,35 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
             if (items.length > 0) {
               console.log(`Sample item from ${tableName}:`, items[0]);
               console.log(`Has readable_coordinates: ${!!items[0].readable_coordinates}`);
-              if (items[0].readable_coordinates) {
+              
+              // Detailed analysis of all fields in the item
+              const sampleItem = items[0];
+              console.log(`All fields in ${tableName} item:`, Object.keys(sampleItem));
+              
+              // Specifically look for date fields
+              const possibleDateFields = Object.keys(sampleItem).filter(key => 
+                key.toLowerCase().includes('date') || key.toLowerCase().includes('time')
+              );
+              
+              if (possibleDateFields.length > 0) {
+                console.log(`Possible date fields in ${tableName}:`, possibleDateFields);
+                possibleDateFields.forEach(field => {
+                  console.log(`Field ${field} value:`, sampleItem[field]);
+                  // Try to parse as date
+                  try {
+                    const date = new Date(sampleItem[field]);
+                    console.log(`Parsed as date:`, date, `Valid:`, !isNaN(date.getTime()));
+                  } catch (e) {
+                    console.log(`Could not parse ${field} as date`);
+                  }
+                });
+              } else {
+                console.log(`No date fields found in ${tableName}`);
+              }
+              
+              if (sampleItem.readable_coordinates) {
                 try {
-                  const coords = JSON.parse(items[0].readable_coordinates);
+                  const coords = JSON.parse(sampleItem.readable_coordinates);
                   console.log(`Parsed coordinates:`, coords);
                 } catch (e) {
                   console.error(`Error parsing coordinates for ${tableName}:`, e);
@@ -632,20 +701,25 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       const resultsByDataset: Record<string, number> = {};
       
       if (results && results.results) {
+        console.log('Processing results structure:', results.results);
+        
         // Handle both array and object formats of results
-        if (Array.isArray(results.results) && results.results.length > 0) {
-          // Format: results.results is an array, first item contains datasets
-          const resultsObj = results.results[0];
-          
-          if (resultsObj && typeof resultsObj === 'object') {
-            Object.entries(resultsObj).forEach(([tableName, datasetResults]: [string, any]) => {
-              if (Array.isArray(datasetResults)) {
-                const count = datasetResults.length;
-                totalResults += count;
-                resultsByDataset[tableName] = count;
-              }
-            });
-          }
+        if (Array.isArray(results.results)) {
+          // Format: results.results is an array of objects, each object represents a table
+          results.results.forEach((resultItem: Record<string, any>) => {
+            if (resultItem && typeof resultItem === 'object') {
+              // Each result item might contain multiple tables
+              Object.entries(resultItem).forEach(([tableName, datasetResults]: [string, any]) => {
+                if (Array.isArray(datasetResults)) {
+                  const count = datasetResults.length;
+                  totalResults += count;
+                  // Add to existing count or initialize
+                  resultsByDataset[tableName] = (resultsByDataset[tableName] || 0) + count;
+                  console.log(`Added ${count} results from table ${tableName}`);
+                }
+              });
+            }
+          });
         } else if (typeof results.results === 'object') {
           // Format: results.results is an object with dataset names as keys
           Object.entries(results.results).forEach(([tableName, datasetResults]: [string, any]) => {
@@ -653,9 +727,12 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
               const count = datasetResults.length;
               totalResults += count;
               resultsByDataset[tableName] = count;
+              console.log(`Added ${count} results from table ${tableName}`);
             }
           });
         }
+        
+        console.log('Final results summary:', { total: totalResults, byDataset: resultsByDataset });
       }
       
       // Set results summary for display in the collapsible card
@@ -699,15 +776,15 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
           className="flex items-center"
         >
         <Plus className="mr-2 h-4 w-4" />
-          Add Query
+          Add Filter
         </Button>
 
-        <div className="relative group">
+        {/* <div className="relative group">
           <Button
             variant="outline"
             className="flex items-center"
           >
-            Save Query
+            Save Filter
           </Button>
           <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
             Not functional
@@ -719,12 +796,38 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
             variant="outline"
             className="flex items-center"
           >
-            Load Query
+            Load Filter
           </Button>
           <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
             Not functional
           </span>
-        </div>
+        </div> */}
+        <div className="relative group">
+  <Button
+    variant="outline"
+    className="flex items-center opacity-50 cursor-not-allowed"
+    disabled
+  >
+    Save Filter
+  </Button>
+  <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+    Not functional
+  </span>
+</div>
+
+<div className="relative group">
+  <Button
+    variant="outline"
+    className="flex items-center opacity-50 cursor-not-allowed"
+    disabled
+  >
+    Load Filter
+  </Button>
+  <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+    Not functional
+  </span>
+</div>
+
       </div>
     </div>
 
@@ -760,28 +863,26 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                       </CardTitle>
                     )}
                     
-                    <span className="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium">
-                      {filter.active ? (
-                        <span className="text-green-800 bg-green-100 px-2 py-0.5 rounded-full">Active</span>
-                      ) : (
-                        <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">Inactive</span>
-                      )}
-                    </span>
+                    <div className="ml-2 inline-flex items-center gap-2">
+                      <Switch
+                        checked={filter.active}
+                        onCheckedChange={() => toggleFilterActive(filter.id)}
+                        className={`${filter.active ? 'bg-green-500' : 'bg-gray-300'} h-5 w-9`}
+                      />
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
+                        {filter.active ? (
+                          <span className="text-green-800 bg-green-100 px-2 py-0.5 rounded-full">Active</span>
+                        ) : (
+                          <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">Inactive</span>
+                        )}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-1">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className={`p-1 h-8 w-8 ${filter.active ? 'text-green-500' : 'text-gray-400'}`}
-                    onClick={() => toggleFilterActive(filter.id)}
-                    title={filter.active ? "Deactivate filter" : "Activate filter"}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
                   
-                  <Button 
+                  {/* <Button 
                     variant="ghost" 
                     size="sm"
                     className={`p-1 h-8 w-8 ${activeFilterId === filter.id ? 'text-blue-500' : ''}`}
@@ -789,13 +890,13 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                     title="Edit this filter"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                  </Button>
+                  </Button> */}
                   
                   <Button 
                     variant="ghost" 
                     size="sm"
                     className="p-1 h-8 w-8 text-red-500 hover:bg-red-50"
-                    onClick={() => removeFilter(filter.id)}
+                    onClick={() => confirmDeleteFilter(filter.id)}
                     title="Remove filter"
                     disabled={filters.length === 1}
                   >
@@ -999,13 +1100,26 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         ))}
       </div>
 
-      {error && (
-        <Alert variant="destructive" className="mt-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      {/* Delete Filter Confirmation Dialog */}
+      <AlertDialog open={filterToDelete !== null} onOpenChange={(open) => !open && setFilterToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this filter?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the filter.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => filterToDelete && removeFilter(filterToDelete)}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       <div className="mt-auto pt-4 flex gap-2">
         <Button 
@@ -1111,6 +1225,22 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
               {/* Dynamic Analytics for Each Dataset */}
               {Object.entries(resultsSummary.byDataset).map(([datasetName, count]) => {
                 if (count === 0 || !queryResults || !queryResults.results) return null;
+                
+                // Get the actual data for this dataset from queryResults
+                let datasetData: any[] = [];
+                
+                if (Array.isArray(queryResults.results)) {
+                  // Check each result object in the array for this dataset
+                  queryResults.results.forEach((resultObj: Record<string, any>) => {
+                    if (resultObj[datasetName] && Array.isArray(resultObj[datasetName])) {
+                      datasetData = [...datasetData, ...resultObj[datasetName]];
+                    }
+                  });
+                } else if (typeof queryResults.results === 'object' && 
+                           queryResults.results[datasetName] && 
+                           Array.isArray(queryResults.results[datasetName])) {
+                  datasetData = queryResults.results[datasetName];
+                }
                 
                 // Get display name for the dataset
                 const displayName = (() => {
