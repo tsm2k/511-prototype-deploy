@@ -2,8 +2,8 @@ import axios from 'axios';
 import https from 'https';
 import { NextApiRequest, NextApiResponse } from 'next';
 
-const API_BASE_URL = 'http://127.0.0.1:5005/api/511DataAnalytics';
-// const API_BASE_URL = 'https://in-engr-tasi02.it.purdue.edu/api/511DataAnalytics';
+// const API_BASE_URL = 'http://127.0.0.1:5005/api/511DataAnalytics';
+const API_BASE_URL = 'https://in-engr-tasi02.it.purdue.edu/api/511DataAnalytics';
 
 
 // Create HTTPS agent that trusts self-signed certificates

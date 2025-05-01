@@ -40,7 +40,7 @@ const Spinner = ({ className }: { className?: string }) => (
 
 // Define the structure for a single filter
 // Define the types of location selections
-type LocationSelectionType = "road" | "city" | "district" | "polygon"
+type LocationSelectionType = "road" | "city" | "district" | "subdistrict" | "polygon" | "county"
 
 // Import PolygonCoordinates from types/filters
 import { PolygonCoordinates } from '@/types/filters';
@@ -49,8 +49,9 @@ import { PolygonCoordinates } from '@/types/filters';
 interface LocationSelection {
   type: LocationSelectionType
   selection: string | string[] | PolygonCoordinates
+  operator: "AND" | "OR" // Operator to use with the next selection
   mileMarkerRange?: { min: number; max: number } // Only for road selections
-  operator?: "AND" | "OR" // Operator to use with the next selection
+  poiRadius?: number // Radius in miles for Points of Interest
 }
 
 interface Filter {
@@ -972,9 +973,24 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                         }}
                         selections={filter.locationSelections || []}
                         onSelectionsChange={(selections) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, locationSelections: selections} : f
-                          ));
+                          // Ensure all selections have the required operator property
+                          const validSelections = selections.map(selection => ({
+                            ...selection,
+                            operator: selection.operator || "AND" // Default to AND if not provided
+                          }));
+                          
+                          // Use a type assertion to ensure TypeScript understands this is a valid Filter
+                          setFilters(prevFilters => prevFilters.map(f => {
+                            if (f.id === filter.id) {
+                              // Create a properly typed filter with the validated selections
+                              const updatedFilter: Filter = {
+                                ...f,
+                                locationSelections: validSelections
+                              };
+                              return updatedFilter;
+                            }
+                            return f;
+                          }));
                         }}
                       />
                     </CardContent>
