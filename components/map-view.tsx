@@ -11,8 +11,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { ChevronUp, ChevronDown, Info, AlertTriangle, Construction, Clock, Map as MapIcon } from "lucide-react"
 import { DataSourceMetadata, fetchDataSourcesMetadata } from "@/services/api"
+import { PointOfInterest } from "@/services/poi-service"
+import * as turf from '@turf/turf'
 
 mapboxgl.accessToken = "pk.eyJ1IjoidGFuYXkyayIsImEiOiJjbTJpYnltejYwbDgwMmpvbm1lNG16enV3In0.fwcdZ3I-cofnDOR9m1Hqng"
+
+// Unique source and layer IDs for roads, POI circles, and boundaries
+let roadSourceCounter = 0;
+let poiCircleCounter = 0;
+let boundarySourceCounter = 0;
 
 // Define interface for map data
 interface MapData {
@@ -67,11 +74,224 @@ export function MapView({ queryResults }: { queryResults?: any }) {
     }
   };
   
+  // Function to clear only POI markers and circles
+  const clearPOIMarkers = () => {
+    if (poiMarkersRef.current) {
+      poiMarkersRef.current.forEach(marker => marker.remove());
+      poiMarkersRef.current = [];
+    }
+    
+    // Also clear POI circle layers
+    if (map.current && poiCircleLayersRef.current.length > 0) {
+      poiCircleLayersRef.current.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      poiCircleLayersRef.current = [];
+    }
+  };
+  
+  // Function to clear road layers
+  const clearRoadLayers = () => {
+    if (map.current) {
+      roadLayersRef.current.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      roadLayersRef.current = [];
+    }
+  };
+  
+  // Function to clear boundary layers
+  const clearBoundaryLayers = () => {
+    if (map.current) {
+      boundaryLayersRef.current.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      boundaryLayersRef.current = [];
+    }
+  };
+  
+  // Function to clear all preview layers
+  const clearAllPreviews = () => {
+    clearPreviewRoadLayers();
+    clearPreviewPoiLayers();
+    clearPreviewBoundaryLayers();
+  };
+  
+  // Function to clear preview road layers
+  const clearPreviewRoadLayers = () => {
+    if (map.current) {
+      previewRoadLayersRef.current.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      previewRoadLayersRef.current = [];
+    }
+  };
+  
+  // Function to clear preview POI layers
+  const clearPreviewPoiLayers = () => {
+    if (map.current) {
+      previewPoiLayersRef.current.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      previewPoiLayersRef.current = [];
+    }
+  };
+  
+  // Function to clear preview boundary layers
+  const clearPreviewBoundaryLayers = () => {
+    if (map.current) {
+      previewBoundaryLayersRef.current.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      previewBoundaryLayersRef.current = [];
+    }
+  };
+  
+  // Function to clear specific boundary by name and type
+  const clearBoundaryByNameAndType = (name: string, type: string) => {
+    if (map.current) {
+      const boundariesToRemove = boundaryLayersRef.current.filter(
+        boundary => boundary.name === name && boundary.type === type
+      );
+      
+      boundariesToRemove.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      
+      // Update the ref to exclude the removed boundaries
+      boundaryLayersRef.current = boundaryLayersRef.current.filter(
+        boundary => !(boundary.name === name && boundary.type === type)
+      );
+    }
+  };
+  
+  // Function to clear specific preview boundary by name and type
+  const clearPreviewBoundaryByNameAndType = (name: string, type: string) => {
+    if (map.current) {
+      const boundariesToRemove = previewBoundaryLayersRef.current.filter(
+        boundary => boundary.name === name && boundary.type === type
+      );
+      
+      boundariesToRemove.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      
+      // Update the ref to exclude the removed boundaries
+      previewBoundaryLayersRef.current = previewBoundaryLayersRef.current.filter(
+        boundary => !(boundary.name === name && boundary.type === type)
+      );
+    }
+  };
+  
+  // Function to clear specific preview road by name
+  const clearPreviewRoadByName = (name: string) => {
+    if (map.current) {
+      const roadsToRemove = previewRoadLayersRef.current.filter(
+        road => road.name === name
+      );
+      
+      roadsToRemove.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      
+      // Update the ref to exclude the removed roads
+      previewRoadLayersRef.current = previewRoadLayersRef.current.filter(
+        road => road.name !== name
+      );
+    }
+  };
+  
+  // Function to clear specific preview POI by name
+  const clearPreviewPoiByName = (name: string) => {
+    if (map.current) {
+      // Remove layer and source
+      const poisToRemove = previewPoiLayersRef.current.filter(
+        poi => poi.name === name
+      );
+      
+      poisToRemove.forEach(({sourceId, layerId}) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      });
+      
+      // Update the ref to exclude the removed POIs
+      previewPoiLayersRef.current = previewPoiLayersRef.current.filter(
+        poi => poi.name !== name
+      );
+      
+      // Also remove any markers for this POI
+      if (poiMarkersRef.current && poiMarkersRef.current.length > 0) {
+        // Since we don't have a direct way to identify which marker belongs to which POI,
+        // we'll remove all markers when clearing previews
+        poiMarkersRef.current.forEach(marker => marker.remove());
+        poiMarkersRef.current = [];
+      }
+    }
+  };
+  
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const drawRef = useRef<MapboxDraw | null>(null)
   const markersRef = useRef<mapboxgl.Marker[]>([])
+  const poiMarkersRef = useRef<mapboxgl.Marker[]>([]) // Separate ref for POI markers
   const popupsRef = useRef<mapboxgl.Popup[]>([])
+  const roadLayersRef = useRef<{sourceId: string, layerId: string}[]>([]) // Track road layers
+  const poiCircleLayersRef = useRef<{sourceId: string, layerId: string, poiName: string}[]>([]) // Track POI circle layers
+  const boundaryLayersRef = useRef<{sourceId: string, layerId: string, name: string, type: string}[]>([]) // Track boundary layers
+  
+  // Refs for preview layers
+  const previewRoadLayersRef = useRef<{sourceId: string, layerId: string, name: string}[]>([]) // Track road preview layers
+  const previewPoiLayersRef = useRef<{sourceId: string, layerId: string, name: string}[]>([]) // Track POI preview layers
+  const previewBoundaryLayersRef = useRef<{sourceId: string, layerId: string, name: string, type: string}[]>([]) // Track boundary preview layers
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   
   // State for dataset metadata (for display names and colors)
@@ -105,6 +325,1362 @@ export function MapView({ queryResults }: { queryResults?: any }) {
     fetchMetadata();
   }, []);
 
+  // Listen for POI selection events from LocationSelector
+  useEffect(() => {
+    const handlePOISelection = (event: CustomEvent) => {
+      console.log('POI selection event received:', event.detail);
+      if (map.current) {
+        const { name, coordinates, type, radius } = event.detail;
+        
+        // Add marker for the POI
+        addPOIMarkerToMap(name, coordinates, radius);
+      }
+    };
+    
+    // Add event listener for POI selection events
+    window.addEventListener('poi-selection-added', handlePOISelection as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('poi-selection-added', handlePOISelection as EventListener);
+    };
+  }, []);
+  
+  // Listen for POI preview events
+  useEffect(() => {
+    // Handler for showing POI preview
+    const handlePOIPreviewShow = (event: CustomEvent) => {
+      console.log('POI preview show event received:', event.detail);
+      if (map.current) {
+        const { name, coordinates, radius } = event.detail;
+        
+        // Clear any existing preview for this POI
+        clearPreviewPoiByName(name);
+        
+        // Create unique source and layer IDs for the preview
+        const sourceId = `preview-poi-source-${poiCircleCounter}`;
+        const layerId = `preview-poi-layer-${poiCircleCounter}`;
+        poiCircleCounter++;
+        
+        // Always add a marker at the POI location regardless of radius
+        const markerElement = document.createElement('div');
+        markerElement.className = 'poi-marker';
+        markerElement.style.width = '15px';
+        markerElement.style.height = '15px';
+        markerElement.style.borderRadius = '50%';
+        markerElement.style.backgroundColor = '#3b82f6';
+        markerElement.style.border = '2px solid white';
+        markerElement.style.boxShadow = '0 0 0 2px rgba(0, 0, 0, 0.1)';
+        // Add data attribute to identify the POI for removal
+        markerElement.setAttribute('data-poi-name', name);
+        markerElement.setAttribute('data-poi-type', 'preview'); // Mark as preview marker
+        
+        // Create a popup with the POI name
+        const popup = new mapboxgl.Popup({ offset: 25 })
+          .setText(`${name} (Preview)`);
+        
+        // Create and add the marker
+        const marker = new mapboxgl.Marker(markerElement)
+          .setLngLat([coordinates.lng, coordinates.lat])
+          .setPopup(popup)
+          .addTo(map.current);
+        
+        // Store the marker reference for later removal
+        if (!poiMarkersRef.current) {
+          poiMarkersRef.current = [];
+        }
+        poiMarkersRef.current.push(marker);
+        
+        // Add circle if radius is specified and greater than 0
+        if (radius && radius > 0) {
+          // Create a point using Turf.js
+          const point = turf.point([coordinates.lng, coordinates.lat]);
+          
+          // Create a circle with the specified radius in miles
+          // Note: turf.buffer takes radius in kilometers, so convert miles to km
+          const radiusKm = radius * 1.60934;
+          const circle = turf.buffer(point, radiusKm, { units: 'kilometers' });
+          
+          // Add the circle as a source
+          map.current.addSource(sourceId, {
+            type: 'geojson',
+            data: circle
+          });
+          
+          // Add a fill layer for the circle
+          map.current.addLayer({
+            id: layerId,
+            type: 'fill',
+            source: sourceId,
+            paint: {
+              'fill-color': '#3b82f6', // Blue color for preview
+              'fill-opacity': 0.3,
+              'fill-outline-color': '#3b82f6'
+            }
+          });
+          
+          // Store the layer references for later removal
+          previewPoiLayersRef.current.push({ sourceId, layerId, name });
+        }
+        
+        // Always fly to the POI location regardless of radius
+        map.current.flyTo({
+          center: [coordinates.lng, coordinates.lat],
+          zoom: 12
+        });
+      }
+    };
+    
+    // Handler for hiding POI preview
+    const handlePOIPreviewHide = (event: CustomEvent) => {
+      console.log('POI preview hide event received:', event.detail);
+      if (map.current) {
+        const { name } = event.detail;
+        clearPreviewPoiByName(name);
+      }
+    };
+    
+    // Handler for updating POI preview (e.g., when radius changes)
+    const handlePOIPreviewUpdate = (event: CustomEvent) => {
+      console.log('POI preview update event received:', event.detail);
+      if (map.current) {
+        const { name, coordinates, radius } = event.detail;
+        
+        // Remove the existing preview and create a new one with the updated radius
+        clearPreviewPoiByName(name);
+        
+        // Create unique source and layer IDs for the preview
+        const sourceId = `preview-poi-source-${poiCircleCounter}`;
+        const layerId = `preview-poi-layer-${poiCircleCounter}`;
+        poiCircleCounter++;
+        
+        // Add a circle for the POI with a different style to indicate it's a preview
+        if (coordinates) {
+          // Convert radius from miles to meters
+          const radiusInMeters = radius * 1609.34;
+          
+          // Create a circle using turf.js
+          const point = turf.point([coordinates.lng, coordinates.lat]);
+          const circle = turf.circle(point, radiusInMeters, { steps: 64, units: 'meters' });
+          
+          // Add source and layer to map
+          map.current.addSource(sourceId, {
+            type: 'geojson',
+            data: circle
+          });
+          
+          // Add fill layer with a semi-transparent fill
+          map.current.addLayer({
+            id: layerId,
+            type: 'fill',
+            source: sourceId,
+            paint: {
+              'fill-color': '#3b82f6', // Blue color for preview
+              'fill-opacity': 0.3,
+              'fill-outline-color': '#3b82f6'
+            }
+          });
+          
+          // Store the layer references for later removal
+          previewPoiLayersRef.current.push({ sourceId, layerId, name });
+        }
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('poi-preview-show', handlePOIPreviewShow as EventListener);
+    window.addEventListener('poi-preview-hide', handlePOIPreviewHide as EventListener);
+    window.addEventListener('poi-preview-update', handlePOIPreviewUpdate as EventListener);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('poi-preview-show', handlePOIPreviewShow as EventListener);
+      window.removeEventListener('poi-preview-hide', handlePOIPreviewHide as EventListener);
+      window.removeEventListener('poi-preview-update', handlePOIPreviewUpdate as EventListener);
+    };
+  }, []);
+  
+  // Listen for Road selection events from LocationSelector
+  useEffect(() => {
+    const handleRoadSelection = (event: CustomEvent) => {
+      console.log('Road selection event received:', event.detail);
+      if (map.current) {
+        const { name, coordinates, type } = event.detail;
+        
+        // Add road line to map
+        addRoadToMap(name, coordinates);
+      }
+    };
+    
+    // Add event listener for Road selection events
+    window.addEventListener('road-selection-added', handleRoadSelection as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('road-selection-added', handleRoadSelection as EventListener);
+    };
+  }, []);
+  
+  // Listen for Road preview events
+  useEffect(() => {
+    // Handler for showing road preview
+    const handleRoadPreviewShow = (event: CustomEvent) => {
+      console.log('Road preview show event received:', event.detail);
+      if (map.current) {
+        const { road } = event.detail;
+        const { name, coordinates } = road;
+        
+        console.log(`Road preview coordinates for ${name}:`, coordinates);
+        
+        // Clear any existing preview for this road
+        clearPreviewRoadByName(name);
+        
+        if (coordinates && coordinates.length > 0) {
+          // Create unique source and layer IDs for the preview
+          const sourceId = `preview-road-source-${roadSourceCounter}`;
+          const layerId = `preview-road-layer-${roadSourceCounter}`;
+          roadSourceCounter++;
+          
+          console.log(`Raw road coordinates type for ${name}:`, Array.isArray(coordinates) ? 'Array' : typeof coordinates);
+          
+          // Handle MultiLineString format from road-service.ts
+          // The coordinates from getRoadCoordinates are in format number[][][] (MultiLineString)
+          if (Array.isArray(coordinates) && coordinates.length > 0 && Array.isArray(coordinates[0])) {
+            // Create a bounds object to encompass all line segments
+            const bounds = new mapboxgl.LngLatBounds();
+            
+            // Process each line segment in the MultiLineString
+            coordinates.forEach((lineSegment: number[][]) => {
+              if (Array.isArray(lineSegment) && lineSegment.length > 0) {
+                // Extend bounds with each coordinate in this line segment
+                lineSegment.forEach((coord: number[]) => {
+                  if (Array.isArray(coord) && coord.length >= 2) {
+                    bounds.extend([coord[0], coord[1]]);
+                  }
+                });
+              }
+            });
+            
+            // Create a GeoJSON feature for the road with MultiLineString geometry
+            const roadFeature: GeoJSON.Feature<GeoJSON.MultiLineString> = {
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'MultiLineString',
+                coordinates: coordinates
+              }
+            };
+            
+            console.log(`Created MultiLineString feature for ${name}:`, roadFeature);
+            
+            // Add source and layer to map
+            map.current.addSource(sourceId, {
+              type: 'geojson',
+              data: roadFeature
+            });
+            
+            // Add line layer with a different style to indicate it's a preview
+            map.current.addLayer({
+              id: layerId,
+              type: 'line',
+              source: sourceId,
+              paint: {
+                'line-color': '#3b82f6', // Blue color for preview
+                'line-width': 6,         // Thicker line for better visibility
+                'line-opacity': 0.9,     // More opaque
+                'line-dasharray': [2, 1] // Dashed line to distinguish from regular selections
+              }
+            });
+            
+            // Store the layer references for later removal
+            previewRoadLayersRef.current.push({ sourceId, layerId, name });
+            
+            // Fit the map to the road
+            map.current.fitBounds(bounds, {
+              padding: 50
+            });
+            
+            return; // Exit early since we've handled the MultiLineString case
+          }
+          
+          // Fallback for other coordinate formats
+          // This handles the case where coordinates might be in a different format
+          const validCoordinates = Array.isArray(coordinates) ? 
+            coordinates.flatMap((coord: any) => {
+              if (Array.isArray(coord) && coord.length >= 2) {
+                return [[coord[0], coord[1]]]; // Already in [lng, lat] format
+              } else if (coord.lng !== undefined && coord.lat !== undefined) {
+                return [[coord.lng, coord.lat]]; // Convert {lng, lat} to [lng, lat]
+              } else if (coord.longitude !== undefined && coord.latitude !== undefined) {
+                return [[coord.longitude, coord.latitude]]; // Convert {longitude, latitude} to [lng, lat]
+              } else {
+                console.error('Invalid coordinate format:', coord);
+                return [];
+              }
+            }) : [];
+          
+          console.log(`Processed road coordinates for ${name}:`, validCoordinates);
+          
+          if (validCoordinates.length < 2) {
+            console.error(`Not enough valid coordinates for road ${name}`);
+            return;
+          }
+          
+          // Create a GeoJSON feature for the road with LineString geometry
+          const roadFeature: GeoJSON.Feature<GeoJSON.LineString> = {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: validCoordinates
+            }
+          };
+          
+          console.log(`Created LineString feature for ${name}:`, roadFeature);
+          
+          // Add source and layer to map
+          map.current.addSource(sourceId, {
+            type: 'geojson',
+            data: roadFeature
+          });
+          
+          // Add line layer with a different style to indicate it's a preview
+          map.current.addLayer({
+            id: layerId,
+            type: 'line',
+            source: sourceId,
+            paint: {
+              'line-color': '#3b82f6', // Blue color for preview
+              'line-width': 6,         // Thicker line for better visibility
+              'line-opacity': 0.9,     // More opaque
+              'line-dasharray': [2, 1] // Dashed line to distinguish from regular selections
+            }
+          });
+          
+          // Store the layer references for later removal
+          previewRoadLayersRef.current.push({ sourceId, layerId, name });
+          
+          // Fit the map to the road
+          const bounds = new mapboxgl.LngLatBounds();
+          validCoordinates.forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+          
+          map.current.fitBounds(bounds, {
+            padding: 50
+          });
+        }
+      }
+    };
+    
+    // Handler for hiding road preview
+    const handleRoadPreviewHide = (event: CustomEvent) => {
+      console.log('Road preview hide event received:', event.detail);
+      if (map.current) {
+        const { road } = event.detail;
+        clearPreviewRoadByName(road.name);
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('road-preview-show', handleRoadPreviewShow as EventListener);
+    window.addEventListener('road-preview-hide', handleRoadPreviewHide as EventListener);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('road-preview-show', handleRoadPreviewShow as EventListener);
+      window.removeEventListener('road-preview-hide', handleRoadPreviewHide as EventListener);
+    };
+  }, []);
+  
+  // Listen for City preview events
+  useEffect(() => {
+    // Handler for showing city preview
+    const handleCityPreviewShow = (event: CustomEvent) => {
+      console.log('City preview show event received:', event.detail);
+      if (map.current) {
+        const { name, feature } = event.detail;
+        
+        // Clear any existing preview for this city
+        clearPreviewBoundaryByNameAndType(name, 'city');
+        
+        // Create unique source and layer IDs for the preview
+        const sourceId = `preview-city-source-${boundarySourceCounter}`;
+        const layerId = `preview-city-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Add source and layer to map
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: feature
+        });
+        
+        // Add fill layer with a different style to indicate it's a preview
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#10b981', // Green color for cities
+            'fill-opacity': 0.3,
+            'fill-outline-color': '#10b981'
+          }
+        });
+        
+        // Store the layer references for later removal
+        previewBoundaryLayersRef.current.push({ sourceId, layerId, name, type: 'city' });
+        
+        // Fit the map to the boundary
+        const bounds = new mapboxgl.LngLatBounds();
+        
+        // Handle both Polygon and MultiPolygon geometries
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
+            polygon[0].forEach((coord: number[]) => {
+              bounds.extend([coord[0], coord[1]]);
+            });
+          });
+        }
+        
+        // Fly to the boundary with padding
+        map.current.fitBounds(bounds, {
+          padding: 50
+        });
+      }
+    };
+    
+    // Handler for hiding city preview
+    const handleCityPreviewHide = (event: CustomEvent) => {
+      console.log('City preview hide event received:', event.detail);
+      if (map.current) {
+        const { name } = event.detail;
+        clearPreviewBoundaryByNameAndType(name, 'city');
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('city-preview-show', handleCityPreviewShow as EventListener);
+    window.addEventListener('city-preview-hide', handleCityPreviewHide as EventListener);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('city-preview-show', handleCityPreviewShow as EventListener);
+      window.removeEventListener('city-preview-hide', handleCityPreviewHide as EventListener);
+    };
+  }, []);
+  
+  // Listen for County preview events
+  useEffect(() => {
+    // Handler for showing county preview
+    const handleCountyPreviewShow = (event: CustomEvent) => {
+      console.log('County preview show event received:', event.detail);
+      if (map.current) {
+        const { name, feature } = event.detail;
+        
+        // Clear any existing preview for this county
+        clearPreviewBoundaryByNameAndType(name, 'county');
+        
+        // Create unique source and layer IDs for the preview
+        const sourceId = `preview-county-source-${boundarySourceCounter}`;
+        const layerId = `preview-county-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Add source and layer to map
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: feature
+        });
+        
+        // Add fill layer with a different style to indicate it's a preview
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#8b5cf6', // Purple color for counties
+            'fill-opacity': 0.3,
+            'fill-outline-color': '#8b5cf6'
+          }
+        });
+        
+        // Store the layer references for later removal
+        previewBoundaryLayersRef.current.push({ sourceId, layerId, name, type: 'county' });
+        
+        // Fit the map to the boundary
+        const bounds = new mapboxgl.LngLatBounds();
+        
+        // Handle both Polygon and MultiPolygon geometries
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
+            polygon[0].forEach((coord: number[]) => {
+              bounds.extend([coord[0], coord[1]]);
+            });
+          });
+        }
+        
+        // Fly to the boundary with padding
+        map.current.fitBounds(bounds, {
+          padding: 50
+        });
+      }
+    };
+    
+    // Handler for hiding county preview
+    const handleCountyPreviewHide = (event: CustomEvent) => {
+      console.log('County preview hide event received:', event.detail);
+      if (map.current) {
+        const { name } = event.detail;
+        clearPreviewBoundaryByNameAndType(name, 'county');
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('county-preview-show', handleCountyPreviewShow as EventListener);
+    window.addEventListener('county-preview-hide', handleCountyPreviewHide as EventListener);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('county-preview-show', handleCountyPreviewShow as EventListener);
+      window.removeEventListener('county-preview-hide', handleCountyPreviewHide as EventListener);
+    };
+  }, []);
+  
+  // Listen for District preview events
+  useEffect(() => {
+    // Handler for showing district preview
+    const handleDistrictPreviewShow = (event: CustomEvent) => {
+      console.log('District preview show event received:', event.detail);
+      if (map.current) {
+        const { name, feature } = event.detail;
+        
+        // Clear any existing preview for this district
+        clearPreviewBoundaryByNameAndType(name, 'district');
+        
+        // Create unique source and layer IDs for the preview
+        const sourceId = `preview-district-source-${boundarySourceCounter}`;
+        const layerId = `preview-district-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Add source and layer to map
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: feature
+        });
+        
+        // Add fill layer with a different style to indicate it's a preview
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#3b82f6', // Blue color for districts
+            'fill-opacity': 0.3,
+            'fill-outline-color': '#3b82f6'
+          }
+        });
+        
+        // Store the layer references for later removal
+        previewBoundaryLayersRef.current.push({ sourceId, layerId, name, type: 'district' });
+        
+        // Fit the map to the boundary
+        const bounds = new mapboxgl.LngLatBounds();
+        
+        // Handle both Polygon and MultiPolygon geometries
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
+            polygon[0].forEach((coord: number[]) => {
+              bounds.extend([coord[0], coord[1]]);
+            });
+          });
+        }
+        
+        // Fly to the boundary with padding
+        map.current.fitBounds(bounds, {
+          padding: 50
+        });
+      }
+    };
+    
+    // Handler for hiding district preview
+    const handleDistrictPreviewHide = (event: CustomEvent) => {
+      console.log('District preview hide event received:', event.detail);
+      if (map.current) {
+        const { name } = event.detail;
+        clearPreviewBoundaryByNameAndType(name, 'district');
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('district-preview-show', handleDistrictPreviewShow as EventListener);
+    window.addEventListener('district-preview-hide', handleDistrictPreviewHide as EventListener);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('district-preview-show', handleDistrictPreviewShow as EventListener);
+      window.removeEventListener('district-preview-hide', handleDistrictPreviewHide as EventListener);
+    };
+  }, []);
+  
+  // Listen for Subdistrict preview events
+  useEffect(() => {
+    // Handler for showing subdistrict preview
+    const handleSubdistrictPreviewShow = (event: CustomEvent) => {
+      console.log('Subdistrict preview show event received:', event.detail);
+      if (map.current) {
+        const { name, feature } = event.detail;
+        
+        // Clear any existing preview for this subdistrict
+        clearPreviewBoundaryByNameAndType(name, 'subdistrict');
+        
+        // Create unique source and layer IDs for the preview
+        const sourceId = `preview-subdistrict-source-${boundarySourceCounter}`;
+        const layerId = `preview-subdistrict-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Add source and layer to map
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: feature
+        });
+        
+        // Add fill layer with a different style to indicate it's a preview
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#93c5fd', // Light blue color for subdistricts
+            'fill-opacity': 0.3,
+            'fill-outline-color': '#93c5fd'
+          }
+        });
+        
+        // Store the layer references for later removal
+        previewBoundaryLayersRef.current.push({ sourceId, layerId, name, type: 'subdistrict' });
+        
+        // Fit the map to the boundary
+        const bounds = new mapboxgl.LngLatBounds();
+        
+        // Handle both Polygon and MultiPolygon geometries
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
+            polygon[0].forEach((coord: number[]) => {
+              bounds.extend([coord[0], coord[1]]);
+            });
+          });
+        }
+        
+        // Fly to the boundary with padding
+        map.current.fitBounds(bounds, {
+          padding: 50
+        });
+      }
+    };
+    
+    // Handler for hiding subdistrict preview
+    const handleSubdistrictPreviewHide = (event: CustomEvent) => {
+      console.log('Subdistrict preview hide event received:', event.detail);
+      if (map.current) {
+        const { name } = event.detail;
+        clearPreviewBoundaryByNameAndType(name, 'subdistrict');
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('subdistrict-preview-show', handleSubdistrictPreviewShow as EventListener);
+    window.addEventListener('subdistrict-preview-hide', handleSubdistrictPreviewHide as EventListener);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('subdistrict-preview-show', handleSubdistrictPreviewShow as EventListener);
+      window.removeEventListener('subdistrict-preview-hide', handleSubdistrictPreviewHide as EventListener);
+    };
+  }, []);
+  
+  // Listen for selection added events to clear previews
+  useEffect(() => {
+    const handleSelectionAdded = () => {
+      console.log('Selection added, clearing all previews');
+      clearAllPreviews();
+    };
+    
+    // Add event listeners for all selection added events
+    window.addEventListener('poi-selection-added', handleSelectionAdded);
+    window.addEventListener('road-selection-added', handleSelectionAdded);
+    window.addEventListener('city-boundary-added', handleSelectionAdded);
+    window.addEventListener('county-boundary-added', handleSelectionAdded);
+    window.addEventListener('district-boundary-added', handleSelectionAdded);
+    window.addEventListener('subdistrict-boundary-added', handleSelectionAdded);
+    
+    return () => {
+      // Clean up event listeners
+      window.removeEventListener('poi-selection-added', handleSelectionAdded);
+      window.removeEventListener('road-selection-added', handleSelectionAdded);
+      window.removeEventListener('city-boundary-added', handleSelectionAdded);
+      window.removeEventListener('county-boundary-added', handleSelectionAdded);
+      window.removeEventListener('district-boundary-added', handleSelectionAdded);
+      window.removeEventListener('subdistrict-boundary-added', handleSelectionAdded);
+    };
+  }, []);
+  
+  // Listen for City boundary events from LocationSelector
+  useEffect(() => {
+    const handleCityBoundary = (event: CustomEvent) => {
+      console.log('City boundary event received:', event.detail);
+      if (map.current) {
+        const { name, feature, type } = event.detail;
+        
+        // Create unique source and layer IDs
+        const sourceId = `boundary-source-${boundarySourceCounter}`;
+        const layerId = `boundary-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Add source and layer to map
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: feature
+        });
+        
+        // Add fill layer
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#10b981', // Green color for cities
+            'fill-opacity': 0.2,
+            'fill-outline-color': '#10b981'
+          }
+        });
+        
+        // Store the layer references for later removal
+        boundaryLayersRef.current.push({ sourceId, layerId, name, type });
+        
+        // Fit the map to the boundary
+        const bounds = new mapboxgl.LngLatBounds();
+        
+        // Handle both Polygon and MultiPolygon geometries
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
+            polygon[0].forEach((coord: number[]) => {
+              bounds.extend([coord[0], coord[1]]);
+            });
+          });
+        }
+        
+        // Fly to the boundary with padding
+        map.current.fitBounds(bounds, {
+          padding: 50
+        });
+      }
+    };
+    
+    // Add event listener for City boundary events
+    window.addEventListener('city-boundary-added', handleCityBoundary as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('city-boundary-added', handleCityBoundary as EventListener);
+    };
+  }, []);
+  
+  // Listen for County boundary events from LocationSelector
+  useEffect(() => {
+    const handleCountyBoundary = (event: CustomEvent) => {
+      console.log('County boundary event received:', event.detail);
+      if (map.current) {
+        const { name, feature, type } = event.detail;
+        
+        // Create unique source and layer IDs
+        const sourceId = `boundary-source-${boundarySourceCounter}`;
+        const layerId = `boundary-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Add source and layer to map
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: feature
+        });
+        
+        // Add fill layer
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#8b5cf6', // Purple color for counties
+            'fill-opacity': 0.2,
+            'fill-outline-color': '#8b5cf6'
+          }
+        });
+        
+        // Store the layer references for later removal
+        boundaryLayersRef.current.push({ sourceId, layerId, name, type });
+        
+        // Fit the map to the boundary
+        const bounds = new mapboxgl.LngLatBounds();
+        
+        // Handle both Polygon and MultiPolygon geometries
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
+            polygon[0].forEach((coord: number[]) => {
+              bounds.extend([coord[0], coord[1]]);
+            });
+          });
+        }
+        
+        // Fly to the boundary with padding
+        map.current.fitBounds(bounds, {
+          padding: 50
+        });
+      }
+    };
+    
+    // Add event listener for County boundary events
+    window.addEventListener('county-boundary-added', handleCountyBoundary as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('county-boundary-added', handleCountyBoundary as EventListener);
+    };
+  }, []);
+  
+  // Listen for District boundary events from LocationSelector
+  useEffect(() => {
+    const handleDistrictBoundary = (event: CustomEvent) => {
+      console.log('District boundary event received:', event.detail);
+      if (map.current) {
+        const { name, feature, type } = event.detail;
+        
+        // Create unique source and layer IDs
+        const sourceId = `boundary-source-${boundarySourceCounter}`;
+        const layerId = `boundary-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Add source and layer to map
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: feature
+        });
+        
+        // Add fill layer
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#3b82f6', // Blue color for districts
+            'fill-opacity': 0.2,
+            'fill-outline-color': '#3b82f6'
+          }
+        });
+        
+        // Store the layer references for later removal
+        boundaryLayersRef.current.push({ sourceId, layerId, name, type });
+        
+        // Fit the map to the boundary
+        const bounds = new mapboxgl.LngLatBounds();
+        
+        // Handle both Polygon and MultiPolygon geometries
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
+            polygon[0].forEach((coord: number[]) => {
+              bounds.extend([coord[0], coord[1]]);
+            });
+          });
+        }
+        
+        // Fly to the boundary with padding
+        map.current.fitBounds(bounds, {
+          padding: 50
+        });
+      }
+    };
+    
+    // Add event listener for District boundary events
+    window.addEventListener('district-boundary-added', handleDistrictBoundary as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('district-boundary-added', handleDistrictBoundary as EventListener);
+    };
+  }, []);
+  
+  // Listen for Subdistrict boundary events from LocationSelector
+  useEffect(() => {
+    const handleSubdistrictBoundary = (event: CustomEvent) => {
+      console.log('Subdistrict boundary event received:', event.detail);
+      if (map.current) {
+        const { name, feature, type } = event.detail;
+        
+        // Create unique source and layer IDs
+        const sourceId = `boundary-source-${boundarySourceCounter}`;
+        const layerId = `boundary-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Add source and layer to map
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: feature
+        });
+        
+        // Add fill layer
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#60a5fa', // Light blue color for subdistricts
+            'fill-opacity': 0.2,
+            'fill-outline-color': '#60a5fa'
+          }
+        });
+        
+        // Store the layer references for later removal
+        boundaryLayersRef.current.push({ sourceId, layerId, name, type });
+        
+        // Fit the map to the boundary
+        const bounds = new mapboxgl.LngLatBounds();
+        
+        // Handle both Polygon and MultiPolygon geometries
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates[0].forEach((coord: number[]) => {
+            bounds.extend([coord[0], coord[1]]);
+          });
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach((polygon: number[][][]) => {
+            polygon[0].forEach((coord: number[]) => {
+              bounds.extend([coord[0], coord[1]]);
+            });
+          });
+        }
+        
+        // Fly to the boundary with padding
+        map.current.fitBounds(bounds, {
+          padding: 50
+        });
+      }
+    };
+    
+    // Add event listener for Subdistrict boundary events
+    window.addEventListener('subdistrict-boundary-added', handleSubdistrictBoundary as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('subdistrict-boundary-added', handleSubdistrictBoundary as EventListener);
+    };
+  }, []);
+  
+  // Listen for Intersection events from LocationSelector
+  useEffect(() => {
+    const handleIntersection = (event: CustomEvent) => {
+      console.log('Intersection event received:', event.detail);
+      if (map.current) {
+        const { roadName, subdivisionName, subdivisionType, roadFeature, subdivisionFeature, intersectionFeatures } = event.detail;
+        
+        // Create unique source and layer IDs for the intersection
+        const intersectionSourceId = `intersection-source-${boundarySourceCounter}`;
+        const intersectionLayerId = `intersection-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        // Create unique source and layer IDs for the road
+        const roadSourceId = `road-source-${boundarySourceCounter}`;
+        const roadLayerId = `road-layer-${boundarySourceCounter}`;
+        boundarySourceCounter++;
+        
+        console.log(`Creating intersection between ${roadName} and ${subdivisionName}`);
+        console.log('Intersection features:', intersectionFeatures);
+        
+        // Only show the portion of the road between intersection points
+        console.log('Creating road segment between intersection points');
+        
+        // Create a feature collection for the road segment between intersections
+        let roadSegmentFeature: GeoJSON.Feature | null = null;
+        let roadFeatureCollection: GeoJSON.FeatureCollection;
+        
+        // Only create the road segment if we have at least 2 intersection points
+        if (intersectionFeatures && intersectionFeatures.length >= 2) {
+          // Extract coordinates from the intersection points
+          const point1 = intersectionFeatures[0].geometry.coordinates;
+          const point2 = intersectionFeatures[intersectionFeatures.length - 1].geometry.coordinates;
+          
+          // Create a LineString feature between the two intersection points
+          roadSegmentFeature = turf.lineString([point1, point2], { name: `${roadName} segment` });
+          console.log('Created road segment between intersection points:', roadSegmentFeature);
+          
+          roadFeatureCollection = {
+            type: 'FeatureCollection',
+            features: [roadSegmentFeature]
+          };
+        } else if (roadFeature.type === 'FeatureCollection') {
+          // Fallback to the entire road if we don't have enough intersection points
+          console.log(`Using provided road collection with ${roadFeature.features.length} features`);
+          roadFeatureCollection = roadFeature;
+        } else {
+          // Fallback to single feature
+          console.log('Creating feature collection from single road feature');
+          roadFeatureCollection = {
+            type: 'FeatureCollection',
+            features: [roadFeature]
+          };
+        }
+        
+        // Add road source to map
+        map.current.addSource(roadSourceId, {
+          type: 'geojson',
+          data: roadFeatureCollection
+        });
+        
+        // Add a visible layer for the road with a distinct style
+        map.current.addLayer({
+          id: roadLayerId,
+          type: 'line',
+          source: roadSourceId,
+          paint: {
+            'line-color': '#3b82f6', // Blue for the road
+            'line-width': 5,
+            'line-opacity': 0.8
+          }
+        });
+        
+        // Store the road layer info for later removal
+        boundaryLayersRef.current.push({
+          name: `${roadName}-road`,
+          type: 'intersection-road',
+          sourceId: roadSourceId,
+          layerId: roadLayerId
+        });
+        
+        // If we have intersection points, add them as a separate layer
+        if (intersectionFeatures && intersectionFeatures.length > 0) {
+          console.log('Adding intersection points to map');
+          // Create a feature collection from the intersection features
+          const intersectionFeatureCollection: GeoJSON.FeatureCollection = {
+              type: 'FeatureCollection',
+              features: intersectionFeatures
+            };
+            
+          // Add source to map
+          map.current.addSource(intersectionSourceId, {
+            type: 'geojson',
+            data: intersectionFeatureCollection
+          });
+          
+          // Add a visible layer for the intersection points
+          map.current.addLayer({
+              id: intersectionLayerId,
+              type: 'circle',
+              source: intersectionSourceId,
+              paint: {
+                'circle-radius': 8,
+                'circle-color': '#ef4444',  // Red for intersection points
+                'circle-opacity': 0.8,
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#ffffff'
+              }
+            });
+            
+            // Store the intersection info for later removal
+            boundaryLayersRef.current.push({
+              name: `${roadName}-${subdivisionName}-intersection-points`,
+              type: 'intersection-points',
+              sourceId: intersectionSourceId,
+              layerId: intersectionLayerId
+            });
+        } else {
+          // If no specific intersection points, create a marker at the center of the subdivision
+          console.log('No specific intersection points found, creating marker at subdivision center');
+          
+          const customIntersection: GeoJSON.Feature<GeoJSON.Point> = {
+              type: 'Feature',
+              properties: {
+                name: `${roadName} ∩ ${subdivisionName}`,
+                description: 'Intersection Area'
+              },
+              geometry: {
+                type: 'Point',
+                coordinates: [0, 0]  // Will be updated below
+              }
+            };
+            
+          // Get a center point from the subdivision feature
+          const center = turf.center(subdivisionFeature);
+          customIntersection.geometry.coordinates = center.geometry.coordinates;
+          
+          // Add source to map
+          map.current.addSource(intersectionSourceId, {
+              type: 'geojson',
+              data: customIntersection
+            });
+            
+          // Add a visible layer for the custom intersection
+          map.current.addLayer({
+              id: intersectionLayerId,
+              type: 'circle',
+              source: intersectionSourceId,
+              paint: {
+                'circle-radius': 8,
+                'circle-color': '#ff9800',  // Orange for custom intersection
+                'circle-opacity': 0.8,
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#ffffff'
+              }
+            });
+            
+            // Store the intersection info for later removal
+            boundaryLayersRef.current.push({
+              name: `${roadName}-${subdivisionName}-intersection`,
+              type: 'intersection',
+              sourceId: intersectionSourceId,
+              layerId: intersectionLayerId
+            });
+        }
+        
+        // Fit the map to show both the road and the subdivision
+        try {
+          // Create a bounding box that includes both the road and subdivision
+          let roadBbox;
+          
+          // Handle road feature collection or single feature
+          if (roadFeature.type === 'FeatureCollection') {
+            // Calculate bbox from the entire feature collection
+            roadBbox = turf.bbox(roadFeature);
+            console.log('Calculated bbox from road collection:', roadBbox);
+          } else {
+            roadBbox = turf.bbox(roadFeature);
+            console.log('Calculated bbox from single road feature:', roadBbox);
+          }
+          
+          const subdivisionBbox = turf.bbox(subdivisionFeature);
+          console.log('Subdivision bbox:', subdivisionBbox);
+          
+          // Combine the bounding boxes
+          const combinedBbox = [
+              Math.min(roadBbox[0], subdivisionBbox[0]),
+              Math.min(roadBbox[1], subdivisionBbox[1]),
+              Math.max(roadBbox[2], subdivisionBbox[2]),
+              Math.max(roadBbox[3], subdivisionBbox[3])
+            ];
+            
+          // Fit the map to the combined bounding box
+          map.current.fitBounds([
+              [combinedBbox[0], combinedBbox[1]], // Southwest coordinates
+              [combinedBbox[2], combinedBbox[3]]  // Northeast coordinates
+            ], { padding: 50 });
+        } catch (error) {
+          console.error('Error fitting map to intersection area:', error);
+        }
+      }
+    };
+    
+    // Add event listener for Intersection events
+    window.addEventListener('intersection-added', handleIntersection as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('intersection-added', handleIntersection as EventListener);
+    };
+  }, []);
+  
+  // Listen for selection removal events from LocationSelector
+  useEffect(() => {
+    const handleSelectionRemoved = (event: CustomEvent) => {
+      console.log('Selection removed event received:', event.detail);
+      if (map.current) {
+        const { type, selection } = event.detail;
+        
+        if (type === 'road') {
+          // Find and remove the road layer and source
+          const roadLayerIndex = roadLayersRef.current.findIndex(layer => {
+            // Check if this layer's source data has the same name property
+            if (map.current?.getSource(layer.sourceId)) {
+              try {
+                const source = map.current.getSource(layer.sourceId) as mapboxgl.GeoJSONSource;
+                const data = source._data as any;
+                return data?.properties?.name === selection;
+              } catch (e) {
+                return false;
+              }
+            }
+            return false;
+          });
+          
+          if (roadLayerIndex >= 0) {
+            const { sourceId, layerId } = roadLayersRef.current[roadLayerIndex];
+            
+            // Remove the layer and source from the map
+            if (map.current.getLayer(layerId)) {
+              map.current.removeLayer(layerId);
+            }
+            if (map.current.getSource(sourceId)) {
+              map.current.removeSource(sourceId);
+            }
+            
+            // Remove from our tracking array
+            roadLayersRef.current.splice(roadLayerIndex, 1);
+            console.log(`Removed road layer for ${selection}`);
+          }
+        } else if (type === 'city') {
+          // Check if this is a Point of Interest (has poiRadius property)
+          if (event.detail.poiRadius !== undefined) {
+            console.log('Removing Point of Interest:', selection);
+            
+            // Clear POI markers (both preview and selection markers)
+            if (poiMarkersRef.current.length > 0) {
+              console.log('Looking for POI markers with name:', selection);
+              
+              // Find markers with the matching POI name (regardless of type)
+              const markersToRemove = poiMarkersRef.current.filter(marker => {
+                const element = marker.getElement();
+                const markerName = element.getAttribute('data-poi-name');
+                console.log('Checking marker:', markerName, 'against selection:', selection);
+                return markerName === selection;
+              });
+              
+              console.log('Found', markersToRemove.length, 'markers to remove');
+              
+              // Remove the markers from the map
+              markersToRemove.forEach(marker => {
+                console.log('Removing marker from map');
+                marker.remove();
+              });
+              
+              // Update the markers reference array
+              poiMarkersRef.current = poiMarkersRef.current.filter(marker => {
+                const element = marker.getElement();
+                return element.getAttribute('data-poi-name') !== selection;
+              });
+            }
+            
+            // Clear POI circle layers
+            if (map.current && poiCircleLayersRef.current.length > 0) {
+              // Find circle layers with the matching POI name
+              const circlesToRemove = poiCircleLayersRef.current.filter(circle => circle.poiName === selection);
+              
+              // Remove the layers and sources from the map
+              circlesToRemove.forEach(({sourceId, layerId}) => {
+                if (map.current?.getLayer(layerId)) {
+                  map.current.removeLayer(layerId);
+                }
+                if (map.current?.getSource(sourceId)) {
+                  map.current.removeSource(sourceId);
+                }
+              });
+              
+              // Update the circle layers reference array
+              poiCircleLayersRef.current = poiCircleLayersRef.current.filter(circle => circle.poiName !== selection);
+            }
+          } else {
+            // Handle regular city boundaries
+            // If a specific city is provided, remove just that one
+            if (selection) {
+              clearBoundaryByNameAndType(selection, 'city');
+            } else {
+              // Otherwise clear all city boundaries
+              const cityBoundaries = boundaryLayersRef.current.filter(b => b.type === 'city');
+              cityBoundaries.forEach(({sourceId, layerId}) => {
+                if (map.current?.getLayer(layerId)) {
+                  map.current.removeLayer(layerId);
+                }
+                if (map.current?.getSource(sourceId)) {
+                  map.current.removeSource(sourceId);
+                }
+              });
+              boundaryLayersRef.current = boundaryLayersRef.current.filter(b => b.type !== 'city');
+            }
+          }
+        } else if (type === 'county') {
+          // If a specific county is provided, remove just that one
+          if (selection) {
+            clearBoundaryByNameAndType(selection, 'county');
+          } else {
+            // Otherwise clear all county boundaries
+            const countyBoundaries = boundaryLayersRef.current.filter(b => b.type === 'county');
+            countyBoundaries.forEach(({sourceId, layerId}) => {
+              if (map.current?.getLayer(layerId)) {
+                map.current.removeLayer(layerId);
+              }
+              if (map.current?.getSource(sourceId)) {
+                map.current.removeSource(sourceId);
+              }
+            });
+            boundaryLayersRef.current = boundaryLayersRef.current.filter(b => b.type !== 'county');
+          }
+        } else if (type === 'district') {
+          // If a specific district is provided, remove just that one
+          if (selection) {
+            clearBoundaryByNameAndType(selection, 'district');
+          } else {
+            // Otherwise clear all district boundaries
+            const districtBoundaries = boundaryLayersRef.current.filter(b => b.type === 'district');
+            districtBoundaries.forEach(({sourceId, layerId}) => {
+              if (map.current?.getLayer(layerId)) {
+                map.current.removeLayer(layerId);
+              }
+              if (map.current?.getSource(sourceId)) {
+                map.current.removeSource(sourceId);
+              }
+            });
+            boundaryLayersRef.current = boundaryLayersRef.current.filter(b => b.type !== 'district');
+          }
+        } else if (type === 'subdistrict') {
+          // If a specific subdistrict is provided, remove just that one
+          if (selection) {
+            clearBoundaryByNameAndType(selection, 'subdistrict');
+          } else {
+            // Otherwise clear all subdistrict boundaries
+            const subdistrictBoundaries = boundaryLayersRef.current.filter(b => b.type === 'subdistrict');
+            subdistrictBoundaries.forEach(({sourceId, layerId}) => {
+              if (map.current?.getLayer(layerId)) {
+                map.current.removeLayer(layerId);
+              }
+              if (map.current?.getSource(sourceId)) {
+                map.current.removeSource(sourceId);
+              }
+            });
+            boundaryLayersRef.current = boundaryLayersRef.current.filter(b => b.type !== 'subdistrict');
+          }
+        }
+      }
+    };
+    
+    // Add event listener for selection removal events
+    window.addEventListener('selection-removed', handleSelectionRemoved as EventListener);
+    
+    return () => {
+      // Clean up event listener
+      window.removeEventListener('selection-removed', handleSelectionRemoved as EventListener);
+    };
+  }, []);
+  
   // Listen for draw mode changes from LocationSelector
   useEffect(() => {
     const handleDrawModeChange = (event: CustomEvent) => {
@@ -634,6 +2210,210 @@ export function MapView({ queryResults }: { queryResults?: any }) {
         newSet.add(item.datasource_tablename);
         return newSet;
       });
+    }
+  };
+  
+  // Function to add a road line to the map
+  const addRoadToMap = (name: string, coordinates: number[][][]) => {
+    if (!map.current) return;
+    
+    console.log('Adding road line for:', name, 'with coordinates:', coordinates);
+    
+    // Create unique IDs for this road's source and layer
+    const sourceId = `road-source-${roadSourceCounter}`;
+    const layerId = `road-layer-${roadSourceCounter}`;
+    roadSourceCounter++;
+    
+    // Create a GeoJSON source for the road
+    const source: mapboxgl.AnySourceData = {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {
+          name: name
+        },
+        geometry: {
+          type: 'MultiLineString',
+          coordinates: coordinates
+        }
+      }
+    };
+    
+    // Add the source to the map
+    map.current.addSource(sourceId, source);
+    
+    // Add a line layer to display the road
+    map.current.addLayer({
+      id: layerId,
+      type: 'line',
+      source: sourceId,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      },
+      paint: {
+        'line-color': '#FF6B6B', // Distinct color for roads
+        'line-width': 5,
+        'line-opacity': 0.8
+      }
+    });
+    
+    // Store reference to the layer and source for later cleanup
+    roadLayersRef.current.push({sourceId, layerId});
+    
+    // Add a popup when clicking on the road
+    map.current.on('click', layerId, (e) => {
+      if (e.features && e.features.length > 0) {
+        const coordinates = e.lngLat;
+        
+        new mapboxgl.Popup()
+          .setLngLat(coordinates)
+          .setHTML(`
+            <div class="p-3">
+              <h3 class="text-lg font-bold mb-2">${name}</h3>
+              <div class="text-sm">
+                <p>Road</p>
+              </div>
+            </div>
+          `)
+          .addTo(map.current!);
+      }
+    });
+    
+    // Change cursor to pointer when hovering over the road
+    map.current.on('mouseenter', layerId, () => {
+      if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+    });
+    
+    map.current.on('mouseleave', layerId, () => {
+      if (map.current) map.current.getCanvas().style.cursor = '';
+    });
+    
+    // Fit the map to the road's coordinates
+    const bounds = new mapboxgl.LngLatBounds();
+    
+    // Add all coordinates to the bounds
+    coordinates.forEach(lineString => {
+      lineString.forEach(point => {
+        bounds.extend([point[0], point[1]]);
+      });
+    });
+    
+    // Fit the map to the bounds with padding
+    map.current.fitBounds(bounds, {
+      padding: 50,
+      maxZoom: 15
+    });
+  };
+  
+  // Function to add a POI marker to the map
+  const addPOIMarkerToMap = (name: string, coordinates: {lat: number, lng: number}, radiusMiles?: number) => {
+    if (!map.current) return;
+    
+    console.log('Adding POI marker for:', name, 'at coordinates:', coordinates, 'with radius:', radiusMiles);
+    
+    // Create marker element with special styling for POIs
+    const markerEl = document.createElement('div');
+    markerEl.className = 'poi-marker';
+    markerEl.setAttribute('data-poi-name', name); // Store the POI name directly on the element
+    markerEl.setAttribute('data-poi-type', 'selection'); // Mark as selection marker
+    markerEl.style.backgroundColor = '#4A6FE3'; // Distinct blue color for POIs
+    markerEl.style.width = '28px';
+    markerEl.style.height = '28px';
+    markerEl.style.borderRadius = '50%';
+    markerEl.style.display = 'flex';
+    markerEl.style.alignItems = 'center';
+    markerEl.style.justifyContent = 'center';
+    markerEl.style.border = '3px solid white';
+    markerEl.style.boxShadow = '0 3px 6px rgba(0,0,0,0.4)';
+    
+    // Add icon or label for POI
+    const iconEl = document.createElement('div');
+    iconEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>';
+    iconEl.style.color = 'white';
+    markerEl.appendChild(iconEl);
+    
+    // Create popup with POI information
+    const popup = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+      maxWidth: '300px'
+    }).setHTML(`
+      <div class="p-3">
+        <h3 class="text-lg font-bold mb-2">${name}</h3>
+        <div class="text-sm">
+          <p>Point of Interest</p>
+          <p>Coordinates: ${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}</p>
+        </div>
+      </div>
+    `);
+    
+    // Add marker to map
+    const marker = new mapboxgl.Marker(markerEl)
+      .setLngLat([coordinates.lng, coordinates.lat])
+      .setPopup(popup);
+    
+    if (map.current) {
+      marker.addTo(map.current);
+      
+      // Store reference for later cleanup
+      poiMarkersRef.current.push(marker);
+      
+      // Fly to the marker location
+      map.current.flyTo({
+        center: [coordinates.lng, coordinates.lat],
+        zoom: 14
+      });
+      
+      // If radius is provided, add a circle around the POI
+      if (radiusMiles && radiusMiles > 0) {
+        // Create a point using Turf.js
+        const point = turf.point([coordinates.lng, coordinates.lat]);
+        
+        // Create a circle with the specified radius in miles
+        // Note: turf.buffer takes radius in kilometers, so convert miles to km
+        const radiusKm = radiusMiles * 1.60934;
+        const circle = turf.buffer(point, radiusKm, { units: 'kilometers' });
+        
+        // Create unique IDs for this circle's source and layer
+        const sourceId = `poi-circle-source-${poiCircleCounter}`;
+        const layerId = `poi-circle-layer-${poiCircleCounter}`;
+        poiCircleCounter++;
+        
+        // Add the circle as a source
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: circle
+        });
+        
+        // Add a fill layer for the circle
+        map.current.addLayer({
+          id: layerId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': '#4A6FE3',
+            'fill-opacity': 0.2,
+            'fill-outline-color': '#4A6FE3'
+          }
+        });
+        
+        // Store reference to the layer and source for later cleanup
+        poiCircleLayersRef.current.push({sourceId, layerId, poiName: name});
+        
+        // Add a popup when hovering over the circle
+        map.current.on('mouseenter', layerId, () => {
+          if (map.current) {
+            map.current.getCanvas().style.cursor = 'pointer';
+          }
+        });
+        
+        map.current.on('mouseleave', layerId, () => {
+          if (map.current) {
+            map.current.getCanvas().style.cursor = '';
+          }
+        });
+      }
     }
   };
   

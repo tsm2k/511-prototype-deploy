@@ -5,7 +5,7 @@ import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCir
 import { Switch } from "@/components/ui/switch"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
-import { TimeframeSelector, TimeframeSelection } from "@/components/selectors/timeframe-selector"
+import { TimelineSelector, TimeframeSelection } from "./selectors/timeline-selector"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LocationSelector } from "@/components/selectors/location-selector"
 import { DynamicDatasetSelector } from "@/components/selectors/dynamic-dataset-selector"
@@ -415,21 +415,17 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
             };
             content = `${formatDate(selection.range.start)} to ${formatDate(selection.range.end)}`;
             break;
-          case "recurringDay":
-            content = `Days: ${selection.selection.days.join(", ")}`;
+          case "weekdays":
+            content = `Days: ${selection.weekdays.join(", ")}`;
             break;
-          case "recurringMonth":
-            content = `Months: ${selection.selection.months.join(", ")}`;
+          case "monthDays":
+            content = `Month days: ${selection.monthDays.join(", ")}`;
             break;
-          case "recurringHoliday":
-            content = `${selection.selection.holiday} (${selection.selection.years.join(", ")})`;
+          case "holidays":
+            content = `Holidays: ${selection.holidays.join(", ")}`;
             break;
-          case "recurringCombined":
-            const combinedParts = [];
-            if (selection.days.length > 0) combinedParts.push(`Days: ${selection.days.join(", ")}`);
-            if (selection.months.length > 0) combinedParts.push(`Months: ${selection.months.join(", ")}`);
-            if (selection.years && selection.years.length > 0) combinedParts.push(`Years: ${selection.years.join(", ")}`);
-            content = combinedParts.join(" + ");
+          case "monthWeek":
+            content = `${selection.monthWeek} ${selection.monthWeekday} of each month`;
             break;
         }
         
@@ -1003,7 +999,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                   </CardHeader>
                   {filter.openSelector === 'timeframe' && (
                     <CardContent>
-                      <TimeframeSelector
+                      <TimelineSelector
                         selections={filter.timeframeSelections || []}
                         onSelectionsChange={(selections: TimeframeSelection[]) => {
                           setFilters(prevFilters => prevFilters.map(f => 
@@ -1169,10 +1165,10 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
           
           <CollapsibleContent className="px-4 pb-4">
             {/* Note about results vs markers */}
-            <div className="mb-3 p-2 bg-blue-50 rounded-md text-xs text-blue-700 flex items-start space-x-2">
+            {/* <div className="mb-3 p-2 bg-blue-50 rounded-md text-xs text-blue-700 flex items-start space-x-2">
               <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <span>Not all results may appear as markers on the map if they lack valid coordinates.</span>
-            </div>
+            </div> */}
             
             {/* Results Summary */}
             <div className="space-y-4">
