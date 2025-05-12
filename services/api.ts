@@ -5,20 +5,11 @@
 // Import the path utility
 import { getBasePath } from "../utils/path-utils";
 
-// External API URL
+// Use local proxy API to avoid CORS issues
+const API_PROXY_URL = `${getBasePath()}/api/proxy`;
+
+// External API URL for reference
 const EXTERNAL_API_URL = 'https://in-engr-tasi02.it.purdue.edu/api/511DataAnalytics';
-
-// Public CORS proxy URL for GitHub Pages deployment
-const CORS_PROXY_URL = 'https://corsproxy.io/?';
-
-// Determine if we're running on GitHub Pages
-const isGitHubPages = typeof window !== 'undefined' && 
-  (window.location.hostname === 'tsm2k.github.io' || window.location.hostname !== 'localhost');
-
-// Use CORS proxy for GitHub Pages, otherwise use the local proxy
-const API_PROXY_URL = isGitHubPages 
-  ? `${CORS_PROXY_URL}${encodeURIComponent(EXTERNAL_API_URL)}` 
-  : `${getBasePath()}/api/proxy`;
 
 /**
  * Interface for datasource metadata
@@ -48,19 +39,10 @@ export interface DataSourceMetadataResponse {
  */
 export const fetchDataSourcesMetadata = async (): Promise<DataSourceMetadata[]> => {
   try {
-    let url: string;
-    let options: RequestInit = {};
-    
-    if (isGitHubPages) {
-      // For GitHub Pages, we're using the CORS proxy which already has the full URL encoded
-      url = `${API_PROXY_URL}/datasources-metadata/`;
-    } else {
-      // For local development, use the local API proxy
-      url = `${API_PROXY_URL}/datasources-metadata`;
-    }
+    const url = `${API_PROXY_URL}/datasources-metadata`;
     
     console.log('Fetching datasource metadata from:', url);
-    const response = await fetch(url, options);
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
@@ -152,19 +134,10 @@ export interface AttributeFilterValuesResponse {
  */
 export const fetchDatasetAttributesMetadata = async (): Promise<DatasetAttributeMetadata[]> => {
   try {
-    let url: string;
-    let options: RequestInit = {};
-    
-    if (isGitHubPages) {
-      // For GitHub Pages, we're using the CORS proxy which already has the full URL encoded
-      url = `${API_PROXY_URL}/attributes-metadata/`;
-    } else {
-      // For local development, use the local API proxy
-      url = `${API_PROXY_URL}/attributes-metadata`;
-    }
+    const url = `${API_PROXY_URL}/attributes-metadata`;
     
     console.log('Fetching dataset attributes metadata from:', url);
-    const response = await fetch(url, options);
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
@@ -201,19 +174,10 @@ export const fetchAttributeFilterValues = async (
 ): Promise<Record<string, string[]>> => {
   try {
     const columnNamesParam = columnNames.join(',');
-    let url: string;
-    let options: RequestInit = {};
-    
-    if (isGitHubPages) {
-      // For GitHub Pages, we're using the CORS proxy which already has the full URL encoded
-      url = `${API_PROXY_URL}/column-filter-values/?table_name=${tableName}&column_names=${columnNamesParam}`;
-    } else {
-      // For local development, use the local API proxy
-      url = `${API_PROXY_URL}/column-filter-values?table_name=${tableName}&column_names=${columnNamesParam}`;
-    }
+    const url = `${API_PROXY_URL}/column-filter-values?table_name=${tableName}&column_names=${columnNamesParam}`;
     
     console.log('Fetching attribute filter values from:', url);
-    const response = await fetch(url, options);
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
@@ -246,7 +210,7 @@ export const executeQuery = async (queryParams: any): Promise<any> => {
   try {
     console.log('Executing query with params:', JSON.stringify(queryParams, null, 2));
     
-    let url: string;
+    const url = `${API_PROXY_URL}/query`;
     
     // Set up request options
     const options: RequestInit = {
@@ -256,14 +220,6 @@ export const executeQuery = async (queryParams: any): Promise<any> => {
       },
       body: JSON.stringify(queryParams),
     };
-    
-    if (isGitHubPages) {
-      // For GitHub Pages, we're using the CORS proxy which already has the full URL encoded
-      url = `${API_PROXY_URL}/query/`;
-    } else {
-      // For local development, use the local API proxy
-      url = `${API_PROXY_URL}/query`;
-    }
     
     console.log('Executing query at:', url);
     const response = await fetch(url, options);
@@ -300,19 +256,10 @@ export const executeQuery = async (queryParams: any): Promise<any> => {
 
 export const fetchLocationData = async (tableName: string = 'event_location_info'): Promise<LocationData> => {
   try {
-    let url: string;
-    let options: RequestInit = {};
-    
-    if (isGitHubPages) {
-      // For GitHub Pages, we're using the CORS proxy which already has the full URL encoded
-      url = `${API_PROXY_URL}/column-filter-values/?table_name=${tableName}`;
-    } else {
-      // For local development, use the local API proxy
-      url = `${API_PROXY_URL}/column-filter-values?table_name=${tableName}`;
-    }
+    const url = `${API_PROXY_URL}/column-filter-values?table_name=${tableName}`;
     
     console.log('Fetching location data from:', url);
-    const response = await fetch(url, options);
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
