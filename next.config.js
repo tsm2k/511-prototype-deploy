@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const nextConfig = {
   // Remove 'output: export' for Vercel deployment
   // Remove basePath and assetPrefix for root domain deployment
@@ -12,6 +14,12 @@ const nextConfig = {
   },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  
+  // Configure webpack to support path aliases
+  webpack: (config) => {
+    config.resolve.alias['@'] = path.resolve(__dirname);
+    return config;
   },
 }
 
