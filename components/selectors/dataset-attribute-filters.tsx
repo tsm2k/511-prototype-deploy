@@ -10,6 +10,7 @@ import { AlertCircle, X, Check, ChevronsUpDown } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AttributeFilter } from "@/components/selectors/attribute-filter"
 import { AttributeRangeFilter } from "@/components/selectors/attribute-range-filter"
+import { DateAwareAttributeFilter } from "@/components/selectors/date-aware-attribute-filter"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
@@ -21,12 +22,14 @@ import {
   type DatasetAttributeMetadata, 
   type DataSourceMetadata 
 } from "@/services/api"
+import { TimeframeSelection } from "./timeline-selector"
 
 interface DatasetAttributeFiltersProps {
   selectedDatasets: string[];
   onFilterChange: (datasetId: string, attributeName: string, values: string[]) => void;
   selectedFilters: Record<string, Record<string, string[]>>;
   onSelectedDatasetsChange?: (datasets: string[]) => void;
+  timeframeSelections?: TimeframeSelection[];
 }
 
 // Extended attribute interface to include datasource information
@@ -230,11 +233,20 @@ function IntegerDropdownMultiselect({
   );
 }
 
+// Cache for attribute values to avoid refetching
+const attributeValuesCache: Record<string, Record<string, string[]>> = {};
+const attributesCache: AttributeWithDataSource[] = [];
+const dataSourcesCache: DataSourceMetadata[] = [];
+const attributeValueCountsCache: Record<string, Record<string, number>> = {};
+const datasetDisplayNamesCache: Record<string, string> = {};
+let isDataLoaded = false;
+
 export function DatasetAttributeFilters({
   selectedDatasets,
   onFilterChange,
   selectedFilters,
-  onSelectedDatasetsChange
+  onSelectedDatasetsChange,
+  timeframeSelections = []
 }: DatasetAttributeFiltersProps) {
   const [attributes, setAttributes] = useState<AttributeWithDataSource[]>([]);
   const [dataSources, setDataSources] = useState<DataSourceMetadata[]>([]);
@@ -243,29 +255,58 @@ export function DatasetAttributeFilters({
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [attributeValueCounts, setAttributeValueCounts] = useState<Record<string, Record<string, number>>>({});
   const [datasetDisplayNames, setDatasetDisplayNames] = useState<Record<string, string>>({}); // Map dataset IDs to display names
+  const [allAttributeValues, setAllAttributeValues] = useState<Record<string, Record<string, string[]>>>({});
 
-  // Fetch datasources first
-  useEffect(() => {
-    const fetchSources = async () => {
-      try {
-        const sources = await fetchDataSourcesMetadata();
-        setDataSources(sources);
-      } catch (err) {
-        console.error('Error fetching datasources:', err);
-        setError('Failed to fetch datasource information');
-      }
-    };
+  // Process attributes for selected datasets
+  const processAttributes = useCallback((attributesWithSource: AttributeWithDataSource[], selectedDatasets: string[]) => {
+    // Filter attributes for selected datasets
+    const filteredAttributes = attributesWithSource.filter(attr => 
+      selectedDatasets.includes(attr.datasource_tablename)
+    );
     
-    fetchSources();
-  }, []);
+    // Create a mapping of dataset IDs to their display names
+    const displayNamesMap: Record<string, string> = {};
+    filteredAttributes.forEach(attr => {
+      displayNamesMap[attr.datasource_tablename] = attr.datasource_name;
+    });
+    
+    setDatasetDisplayNames(displayNamesMap);
+    Object.assign(datasetDisplayNamesCache, displayNamesMap);
+    
+    if (filteredAttributes.length > 0) {
+      setAttributes(filteredAttributes);
+      // Set the first dataset as active tab if none is selected
+      if (!activeTab || !selectedDatasets.includes(activeTab)) {
+        setActiveTab(selectedDatasets[0]);
+      }
+      setError(null);
+    } else {
+      setAttributes([]);
+      setError('No attributes found for selected datasets');
+    }
+  }, [activeTab, setActiveTab]);
 
-  // Fetch attributes metadata for all datasets
+  // Load all data asynchronously when the component mounts
   useEffect(() => {
-    const fetchAttributes = async () => {
-      if (selectedDatasets.length === 0 || dataSources.length === 0) return;
-      
+    const loadAllData = async () => {
+      // If data is already loaded, use cached data
+      if (isDataLoaded && attributesCache.length > 0) {
+        setDataSources(dataSourcesCache);
+        processAttributes(attributesCache, selectedDatasets);
+        setAttributeValueCounts(attributeValueCountsCache);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
+        // Step 1: Fetch all data sources
+        const sources = await fetchDataSourcesMetadata();
+        setDataSources(sources);
+        dataSourcesCache.length = 0;
+        dataSourcesCache.push(...sources);
+
+        // Step 2: Fetch all attributes metadata
         const allAttributes = await fetchDatasetAttributesMetadata();
         
         // Map attributes to datasources
@@ -273,12 +314,11 @@ export function DatasetAttributeFilters({
         
         for (const attr of allAttributes) {
           // Extract datasource ID from the URL
-          // Example: http://127.0.0.1:5005/api/511DataAnalytics/datasources-metadata/1/
           const urlParts = attr.datasource_metadata.split('/');
           const datasourceId = urlParts[urlParts.length - 2]; // Get the ID from the URL
           
           // Find matching datasource
-          const datasource = dataSources.find(ds => {
+          const datasource = sources.find(ds => {
             const dsUrlParts = ds.url.split('/');
             const dsId = dsUrlParts[dsUrlParts.length - 2];
             return dsId === datasourceId;
@@ -293,86 +333,113 @@ export function DatasetAttributeFilters({
             });
           }
         }
+
+        // Cache all attributes
+        attributesCache.length = 0;
+        attributesCache.push(...attributesWithSource);
+
+        // Process attributes for selected datasets
+        processAttributes(attributesWithSource, selectedDatasets);
+
+        // Step 3: Fetch all attribute values for all datasets
+        // Group attributes by dataset for efficient value fetching
+        const attrsByDataset: Record<string, string[]> = {};
         
-        // Filter attributes for selected datasets
-        const filteredAttributes = attributesWithSource.filter(attr => 
-          selectedDatasets.includes(attr.datasource_tablename)
-        );
-        
-        // Create a mapping of dataset IDs to their display names
-        const displayNamesMap: Record<string, string> = {};
-        filteredAttributes.forEach(attr => {
-          displayNamesMap[attr.datasource_tablename] = attr.datasource_name;
-        });
-        setDatasetDisplayNames(displayNamesMap);
-        
-        if (filteredAttributes.length > 0) {
-          setAttributes(filteredAttributes);
-          // Set the first dataset as active tab if none is selected
-          if (!activeTab || !selectedDatasets.includes(activeTab)) {
-            setActiveTab(selectedDatasets[0]);
+        for (const attr of attributesWithSource) {
+          if (!attrsByDataset[attr.datasource_tablename]) {
+            attrsByDataset[attr.datasource_tablename] = [];
           }
-          setError(null);
-          
-          // Group attributes by dataset for efficient value fetching
-          const attrsByDataset: Record<string, string[]> = {};
-          
-          for (const attr of filteredAttributes) {
-            if (!attrsByDataset[attr.datasource_tablename]) {
-              attrsByDataset[attr.datasource_tablename] = [];
-            }
-            attrsByDataset[attr.datasource_tablename].push(attr.attribute_column_name);
+          attrsByDataset[attr.datasource_tablename].push(attr.attribute_column_name);
+        }
+        
+        // Initialize value counts structure
+        const valueCounts: Record<string, Record<string, number>> = {};
+        const allValues: Record<string, Record<string, string[]>> = {};
+        
+        // Only fetch values for the currently selected datasets to improve initial load time
+        const selectedDatasetIds = selectedDatasets.filter(id => attrsByDataset[id]);
+        
+        // Initialize value counts for all datasets
+        for (const datasetId of Object.keys(attrsByDataset)) {
+          if (!valueCounts[datasetId]) {
+            valueCounts[datasetId] = {};
           }
           
-          // Fetch value counts for each attribute to determine if we should use range slider
-          const valueCounts: Record<string, Record<string, number>> = {};
-          
-          // Process each dataset in sequence to avoid overwhelming the API
-          for (const datasetId of Object.keys(attrsByDataset)) {
-            if (!valueCounts[datasetId]) {
-              valueCounts[datasetId] = {};
-            }
+          if (!attributeValuesCache[datasetId]) {
+            attributeValuesCache[datasetId] = {};
+          }
+        }
+        
+        // Process selected datasets in parallel with a limit of 3 concurrent requests
+        const fetchDatasetValues = async (datasetId: string) => {
+          try {
+            // Fetch values for all attributes in this dataset at once
+            const values = await fetchAttributeFilterValues(
+              datasetId,
+              attrsByDataset[datasetId]
+            );
             
-            try {
-              // Fetch values for all attributes in this dataset at once
-              const values = await fetchAttributeFilterValues(
-                datasetId,
-                attrsByDataset[datasetId]
-              );
-              
-              // Process the results
-              if (values) {
-                for (const attrName of attrsByDataset[datasetId]) {
-                  if (values[attrName]) {
-                    valueCounts[datasetId][attrName] = values[attrName].length;
-                  }
+            // Process the results
+            if (values) {
+              for (const attrName of attrsByDataset[datasetId]) {
+                if (values[attrName]) {
+                  valueCounts[datasetId][attrName] = values[attrName].length;
+                  attributeValuesCache[datasetId][attrName] = values[attrName];
                 }
               }
-            } catch (err) {
-              console.error(`Error fetching values for dataset ${datasetId}:`, err);
             }
+            return true;
+          } catch (err) {
+            console.error(`Error fetching values for dataset ${datasetId}:`, err);
+            return false;
           }
+        };
+        
+        // Helper function to process datasets in chunks
+        const processBatch = async (datasets: string[], batchSize: number) => {
+          for (let i = 0; i < datasets.length; i += batchSize) {
+            const batch = datasets.slice(i, i + batchSize);
+            await Promise.all(batch.map(datasetId => fetchDatasetValues(datasetId)));
+          }
+        };
+        
+        // Process selected datasets first with higher concurrency
+        await processBatch(selectedDatasetIds, 3);
+        
+        // Then process remaining datasets in the background after a delay
+        setTimeout(() => {
+          const remainingDatasets = Object.keys(attrsByDataset)
+            .filter(id => !selectedDatasetIds.includes(id));
+            
+          processBatch(remainingDatasets, 2).then(() => {
+            // Update the caches with any new values
+            Object.assign(attributeValueCountsCache, valueCounts);
+          });
+        }, 2000); // 2 second delay before loading non-selected datasets
           
-          setAttributeValueCounts(valueCounts);
-        } else {
-          setError("No attributes found for selected datasets");
-          setAttributes([]);
-        }
+        // Store the results in state and cache
+        setAttributeValueCounts(valueCounts);
+        
+        // Update caches
+        Object.assign(attributeValueCountsCache, valueCounts);
+        Object.assign(attributeValuesCache, allValues);
+        
+        // Mark as loaded
+        isDataLoaded = true;
       } catch (err) {
-        setError("Failed to fetch dataset attributes");
-        console.error(err);
-        setAttributes([]);
+        console.error('Error loading data:', err);
+        setError('Failed to load data. Please try again.');
       } finally {
         setIsLoading(false);
       }
     };
-
-    fetchAttributes();
-  }, [selectedDatasets, dataSources]);
+    
+    loadAllData();
+  }, [processAttributes, selectedDatasets]);
 
   // Group attributes by dataset, filtering out attributes with priority 10
   const attributesByDataset = attributes.reduce<Record<string, AttributeWithDataSource[]>>(
-    (acc, attr) => {
+    (acc: Record<string, AttributeWithDataSource[]>, attr: AttributeWithDataSource) => {
       // Skip attributes with priority 10 (hidden)
       if (attr.attribute_ui_priority === 10) {
         return acc;
@@ -388,7 +455,7 @@ export function DatasetAttributeFilters({
   );
 
   // Handle attribute filter change
-  const handleAttributeFilterChange = (datasetId: string, attributeName: string, values: string[]) => {
+  const handleFilterChange = (datasetId: string, attributeName: string, values: string[]) => {
     onFilterChange(datasetId, attributeName, values);
   };
 
@@ -567,7 +634,7 @@ export function DatasetAttributeFilters({
                                       attributeColumnName={attribute.attribute_column_name}
                                       tableName={attribute.datasource_tablename}
                                       onFilterChange={(columnName, values) => 
-                                        handleAttributeFilterChange(datasetId, columnName, values)
+                                        handleFilterChange(datasetId, columnName, values)
                                       }
                                       selectedValues={
                                         selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
@@ -579,7 +646,7 @@ export function DatasetAttributeFilters({
                                       attributeColumnName={attribute.attribute_column_name}
                                       tableName={attribute.datasource_tablename}
                                       onFilterChange={(columnName: string, values: string[]) => 
-                                        handleAttributeFilterChange(datasetId, columnName, values)
+                                        handleFilterChange(datasetId, columnName, values)
                                       }
                                       selectedValues={
                                         selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
@@ -587,16 +654,33 @@ export function DatasetAttributeFilters({
                                     />
                                   )
                                 ) : (
-                                  <AttributeFilter
-                                    attributeColumnName={attribute.attribute_column_name}
-                                    tableName={attribute.datasource_tablename}
-                                    onFilterChange={(columnName, values) => 
-                                      handleAttributeFilterChange(datasetId, columnName, values)
-                                    }
-                                    selectedValues={
-                                      selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                    }
-                                  />
+                                  /* Use DateAwareAttributeFilter for social_events event_name attribute */
+                                  datasetId === "social_events" && attribute.attribute_column_name === "event_name" ? (
+                                    <DateAwareAttributeFilter
+                                      attributeName={attribute.attribute_ui_name}
+                                      attributeColumnName={attribute.attribute_column_name}
+                                      tableName={attribute.datasource_tablename}
+                                      onFilterChange={(columnName, values) => 
+                                        handleFilterChange(datasetId, columnName, values)
+                                      }
+                                      selectedValues={
+                                        selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                      }
+                                      timeframeSelections={timeframeSelections}
+                                      dateField="date_start"
+                                    />
+                                  ) : (
+                                    <AttributeFilter
+                                      attributeColumnName={attribute.attribute_column_name}
+                                      tableName={attribute.datasource_tablename}
+                                      onFilterChange={(columnName, values) => 
+                                        handleFilterChange(datasetId, columnName, values)
+                                      }
+                                      selectedValues={
+                                        selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                      }
+                                    />
+                                  )
                                 )}
 
                               </div>
@@ -639,23 +723,40 @@ export function DatasetAttributeFilters({
                                           attributeColumnName={attribute.attribute_column_name}
                                           tableName={attribute.datasource_tablename}
                                           onFilterChange={(columnName, values) => 
-                                            handleAttributeFilterChange(datasetId, columnName, values)
+                                            handleFilterChange(datasetId, columnName, values)
                                           }
                                           selectedValues={
                                             selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
                                           }
                                         />
                                       ) : (
-                                        <AttributeFilter
-                                          attributeColumnName={attribute.attribute_column_name}
-                                          tableName={attribute.datasource_tablename}
-                                          onFilterChange={(columnName, values) => 
-                                            handleAttributeFilterChange(datasetId, columnName, values)
-                                          }
-                                          selectedValues={
-                                            selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                          }
-                                        />
+                                        /* Use DateAwareAttributeFilter for social_events event_name attribute */
+                                        datasetId === "social_events" && attribute.attribute_column_name === "event_name" ? (
+                                          <DateAwareAttributeFilter
+                                            attributeName={attribute.attribute_ui_name}
+                                            attributeColumnName={attribute.attribute_column_name}
+                                            tableName={attribute.datasource_tablename}
+                                            onFilterChange={(columnName, values) => 
+                                              handleFilterChange(datasetId, columnName, values)
+                                            }
+                                            selectedValues={
+                                              selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                            }
+                                            timeframeSelections={timeframeSelections}
+                                            dateField="date_start"
+                                          />
+                                        ) : (
+                                          <AttributeFilter
+                                            attributeColumnName={attribute.attribute_column_name}
+                                            tableName={attribute.datasource_tablename}
+                                            onFilterChange={(columnName, values) => 
+                                              handleFilterChange(datasetId, columnName, values)
+                                            }
+                                            selectedValues={
+                                              selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                            }
+                                          />
+                                        )
                                       )}
 
                                     </div>

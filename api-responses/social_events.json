@@ -1,0 +1,66 @@
+{
+    "results": [
+        {
+            "social_events": [
+                {
+                    "id": 3,
+                    "datasource_metadata_id": 8,
+                    "origin_datasource_id": "vv17fZb8GkD-_dY1",
+                    "data_retrieval_timestamp": "2025-03-31T00:51:44.597626",
+                    "event_name": "Indiana Pacers vs. Washington Wizards",
+                    "event_classification_segment": "Sports",
+                    "event_classification_genre": "Basketball",
+                    "event_classification_subgenre": "NBA",
+                    "date_start": "2025-04-08T23:00:00Z",
+                    "date_end": null,
+                    "span_multiple_days": false,
+                    "event_location_id": 66048,
+                    "route": null,
+                    "start_mile_marker": null,
+                    "end_mile_marker": null,
+                    "positive_direction": null,
+                    "negative_direction": null,
+                    "positive_lane_count": null,
+                    "negative_lane_count": null,
+                    "region": null,
+                    "county": null,
+                    "subdistrict": null,
+                    "district": null,
+                    "city": "Indianapolis",
+                    "unit": null,
+                    "event_location_category": "venue",
+                    "readable_coordinates": "{\"type\":\"Point\",\"coordinates\":[-86.155507,39.764064]}"
+                },
+                {
+                    "id": 4,
+                    "datasource_metadata_id": 8,
+                    "origin_datasource_id": "vv17fZb8GkD-QKYl",
+                    "data_retrieval_timestamp": "2025-03-31T00:51:44.723759",
+                    "event_name": "Indiana Pacers vs. Cleveland Cavaliers",
+                    "event_classification_segment": "Sports",
+                    "event_classification_genre": "Basketball",
+                    "event_classification_subgenre": "NBA",
+                    "date_start": "2025-04-10T23:00:00Z",
+                    "date_end": null,
+                    "span_multiple_days": false,
+                    "event_location_id": 66049,
+                    "route": null,
+                    "start_mile_marker": null,
+                    "end_mile_marker": null,
+                    "positive_direction": null,
+                    "negative_direction": null,
+                    "positive_lane_count": null,
+                    "negative_lane_count": null,
+                    "region": null,
+                    "county": null,
+                    "subdistrict": null,
+                    "district": null,
+                    "city": "Indianapolis",
+                    "unit": null,
+                    "event_location_category": "venue",
+                    "readable_coordinates": "{\"type\":\"Point\",\"coordinates\":[-86.155507,39.764064]}"
+                }
+            ]
+        }
+    ]
+}

@@ -6,9 +6,11 @@ import { AppTopbar } from "@/components/app-topbar"
 import { SelectorPanel } from "@/components/selector-panel"
 import { MapContainer } from "@/components/map-container"
 import { PlaceholderPage } from "@/components/placeholder-page"
+import { DatabaseView } from "@/components/database-view"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { FilterProvider } from "@/contexts/filter-context"
 
 export default function Home() {
   const [activeView, setActiveView] = useState<string>("map")
@@ -78,68 +80,114 @@ export default function Home() {
   }, [])
   
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden">
-      <AppTopbar activeView={activeView} onViewChange={handleViewChange} />
-      <div className="flex-1 overflow-hidden">
-        {activeView === "map" && (
-          <div className="relative h-full">
-            <ResizablePanelGroup direction="horizontal">
-              {isFiltersPanelCollapsed ? (
-                <ResizablePanel 
-                  defaultSize={5} 
-                  minSize={5} 
-                  maxSize={5}
-                  className="!w-[50px] !min-w-[50px] !max-w-[50px] flex items-center justify-center"
-                  data-panel-id="collapsed-panel"
-                >
-                  <div className="h-full w-full flex flex-col items-center pt-16 bg-white">
-                    <div className="writing-vertical text-lg font-medium text-gray-700 mb-4">Data Filters</div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="mt-2 bg-white/80 hover:bg-white shadow-sm border rounded-full"
-                      onClick={toggleFiltersPanel}
-                      aria-label="Expand filters panel"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </ResizablePanel>
-              ) : (
-                <ResizablePanel 
-                  defaultSize={32} 
-                  minSize={37} 
-                  maxSize={45}
-                  className="min-w-[300px]"
-                  data-panel-id="filters-panel"
-                >
-                  <div className="h-full relative">
-                    <SelectorPanel />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white shadow-sm border rounded-full"
-                      onClick={toggleFiltersPanel}
-                      aria-label="Collapse filters panel"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </ResizablePanel>
-              )}
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={isFiltersPanelCollapsed ? 95 : 68}>
-                <MapContainer 
-                  queryResults={mapData}
-                />
+    <FilterProvider>
+      <div className="flex flex-col h-screen w-full overflow-hidden">
+        <AppTopbar activeView={activeView} onViewChange={handleViewChange} />
+        <div className="flex-1 overflow-hidden">
+        <div className="relative h-full">
+          <ResizablePanelGroup direction="horizontal">
+            {isFiltersPanelCollapsed ? (
+              <ResizablePanel 
+                defaultSize={5} 
+                minSize={5} 
+                maxSize={5}
+                className="!w-[50px] !min-w-[50px] !max-w-[50px] flex items-center justify-center"
+                data-panel-id="collapsed-panel"
+              >
+                <div className="h-full w-full flex flex-col items-center pt-16 bg-white">
+                  <div className="writing-vertical text-lg font-medium text-gray-700 mb-4">Data Filters</div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="mt-2 bg-white/80 hover:bg-white shadow-sm border rounded-full"
+                    onClick={toggleFiltersPanel}
+                    aria-label="Expand filters panel"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </ResizablePanel>
-            </ResizablePanelGroup>
-          </div>
-        )}
-        
-        {activeView === "chart" && (
-          <PlaceholderPage title="Chart View" onBack={() => handleViewChange("map")} />
-        )}
+            ) : (
+              <ResizablePanel 
+                defaultSize={32} 
+                minSize={38} 
+                maxSize={45}
+                className="min-w-[300px]"
+                data-panel-id="filters-panel"
+              >
+                {/* Keep SelectorPanel mounted even when collapsed */}
+                <div className="h-full relative">
+                  <div className="h-full">
+                    <SelectorPanel />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white shadow-sm border rounded-full"
+                    onClick={toggleFiltersPanel}
+                    aria-label="Collapse filters panel"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </div>
+              </ResizablePanel>
+            )}
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={isFiltersPanelCollapsed ? 95 : 68}>
+              {/* Keep both views in the DOM but only display the active one */}
+              <div className="h-full w-full relative">
+                {/* Map View - Always rendered but conditionally displayed */}
+                <div className={`absolute inset-0 transition-opacity duration-300 ${activeView === "map" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}>
+                  <MapContainer queryResults={mapData} />
+                </div>
+                
+                {/* Chart View - Always rendered but conditionally displayed */}
+                <div className={`absolute inset-0 transition-opacity duration-300 ${activeView === "chart" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}>
+                  <div className="h-full w-full">
+                    <div className="p-4 bg-gray-50 border-b">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleViewChange("map")}
+                        className="flex items-center gap-2"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Back to Map View
+                      </Button>
+                    </div>
+                    {/* Chart View Content */}
+                    <div className="h-[calc(100%-56px)]">
+                      {/* @ts-ignore - Dynamic import */}
+                      {(() => {
+                        const ChartView = require("@/components/chart-view").ChartView;
+                        return <ChartView data={mapData} />;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Database View - Always rendered but conditionally displayed */}
+                <div className={`absolute inset-0 transition-opacity duration-300 ${activeView === "database" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}>
+                  <div className="h-full w-full">
+                    <div className="p-4 bg-gray-50 border-b">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleViewChange("map")}
+                        className="flex items-center gap-2"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Back to Map View
+                      </Button>
+                    </div>
+                    {/* Database View Content */}
+                    <div className="h-[calc(100%-56px)]">
+                      <DatabaseView data={mapData} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
         
         {activeView === "data" && (
           <PlaceholderPage title="Data Catalog" onBack={() => handleViewChange("map")} />
@@ -153,7 +201,8 @@ export default function Home() {
           <PlaceholderPage title="User Guide" onBack={() => handleViewChange("map")} />
         )} */}
       </div>
-    </div>
+      </div>
+    </FilterProvider>
   )
 }
 

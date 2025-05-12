@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>I-69 in Fort Wayne with Mapbox</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+  // ✅ Your Mapbox token
+  mapboxgl.accessToken = 'pk.eyJ1IjoidGFuYXkyayIsImEiOiJjbTJpYnltejYwbDgwMmpvbm1lNG16enV3In0.fwcdZ3I-cofnDOR9m1Hqng';
+
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/navigation-day-v1',
+    center: [-85.13, 40.98],
+    zoom: 6.5
+  });
+
+  map.on('load', async () => {
+    const [i69, district] = await Promise.all([
+      fetch("I-69.geojson").then(res => res.json()),
+      fetch("fort_wayne_district.geojson").then(res => res.json())
+    ]);
+
+    const districtPolygon = district.features[0];
+    const flattened = turf.flatten(i69);
+    const insideSegments = [];
+
+    flattened.features.forEach(line => {
+      if (turf.booleanWithin(line, districtPolygon)) {
+        insideSegments.push(line);
+      } else {
+        const overlap = turf.lineOverlap(line, districtPolygon, { tolerance: 0.0001 });
+        if (overlap.features.length > 0) {
+          insideSegments.push(...overlap.features);
+        }
+      }
+    });
+
+    const insideGeoJSON = {
+      type: "FeatureCollection",
+      features: insideSegments
+    };
+
+    // 🔲 District polygon
+    map.addSource("district", {
+      type: "geojson",
+      data: district
+    });
+    map.addLayer({
+      id: "district",
+      type: "fill",
+      source: "district",
+      paint: {
+        "fill-color": "#00FF00",
+        "fill-opacity": 0.1
+      }
+    });
+    map.addLayer({
+      id: "district-outline",
+      type: "line",
+      source: "district",
+      paint: {
+        "line-color": "#007700",
+        "line-width": 2
+      }
+    });
+
+    // 🔵 Full I-69
+    map.addSource("i69", {
+      type: "geojson",
+      data: i69
+    });
+    map.addLayer({
+      id: "i69",
+      type: "line",
+      source: "i69",
+      paint: {
+        "line-color": "#007BFF",
+        "line-width": 2
+      }
+    });
+
+    // 🔴 I-69 inside Fort Wayne
+    map.addSource("i69-inside", {
+      type: "geojson",
+      data: insideGeoJSON
+    });
+    map.addLayer({
+      id: "i69-inside",
+      type: "line",
+      source: "i69-inside",
+      paint: {
+        "line-color": "#FF0000",
+        "line-width": 4
+      }
+    });
+
+    // 🗺️ Fit bounds
+    const bounds = turf.bbox(districtPolygon);
+    map.fitBounds(bounds, { padding: 40 });
+  });
+</script>
+</body>
+</html>

@@ -87,9 +87,25 @@ export function TimelineSelector({
   onSelectionsChange,
   getSummaryRef
 }: TimelineSelectorProps) {
-  // State for date range
-  const [startDate, setStartDate] = useState<Date>(getDefaultStartDate());
-  const [endDate, setEndDate] = useState<Date>(new Date());
+  // Get existing date range from selections or use defaults
+  const getInitialDates = () => {
+    const dateRangeSelection = selections.find(s => s.type === "dateRange");
+    if (dateRangeSelection && dateRangeSelection.type === "dateRange") {
+      return {
+        start: dateRangeSelection.range.start,
+        end: dateRangeSelection.range.end
+      };
+    }
+    return {
+      start: getDefaultStartDate(),
+      end: new Date()
+    };
+  };
+  
+  // State for date range - initialize from selections to prevent reset on collapse
+  const initialDates = getInitialDates();
+  const [startDate, setStartDate] = useState<Date>(initialDates.start);
+  const [endDate, setEndDate] = useState<Date>(initialDates.end);
   
   // State for recurrence options
   const [dayHours, setDayHours] = useState<number[]>([0, 24]);
@@ -105,6 +121,25 @@ export function TimelineSelector({
   // State for accordion
   const [expanded, setExpanded] = useState(false);
   const [preview, setPreview] = useState<React.ReactNode>(null);
+  
+  // Initialize default date range selection when component mounts
+  useEffect(() => {
+    if (selections.length === 0) {
+      // Add default date range selection if no selections exist
+      const defaultStart = getDefaultStartDate();
+      const defaultEnd = new Date();
+      
+      // Create default date range selection
+      const defaultDateRangeSelection: TimeframeSelection = {
+        type: "dateRange",
+        range: { start: defaultStart, end: defaultEnd },
+        operator: "AND"
+      };
+      
+      // Update selections with default date range
+      onSelectionsChange([defaultDateRangeSelection]);
+    }
+  }, []);
 
   // Initially a week prior to the current day
   function getDefaultStartDate() {
@@ -526,7 +561,10 @@ export function TimelineSelector({
   // Generate summary for display in the selector panel
   const getSummary = () => {
     if (selections.length === 0) {
-      return "No timeframe selected";
+      // Show the default date range instead of 'No timeframe selected'
+      const defaultStart = getDefaultStartDate();
+      const defaultEnd = new Date();
+      return `${format(defaultStart, "MMM d, yyyy")} to ${format(defaultEnd, "MMM d, yyyy")}`;
     }
     
     const parts: string[] = [];
@@ -609,7 +647,7 @@ export function TimelineSelector({
             <span className="font-medium">Editing Custom Days or Hours within Selected Range</span>
           ) : isPreviewable() ? (
             <div className="flex flex-col items-center space-y-2">
-              <span className="font-medium">Only Showing:</span>
+              <span className="font-medium">Filtered to:</span>
               <span className="px-4 py-2 bg-gray-100 rounded-md inline-block text-sm">
                 {getOverallPreviewString()}
               </span>
@@ -654,52 +692,48 @@ export function TimelineSelector({
             <h3 className="text-base font-semibold text-gray-800">Date Options</h3>
             
             {/* Date Range Selector */}
-            <div className="mt-3 flex flex-wrap gap-4">
-              <div className="flex items-center flex-1 min-w-[240px]">
-                <Label className="text-sm font-medium text-gray-700 mr-3 w-14">From</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal h-9 text-sm border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4 text-gray-500" />
-                      <span className="text-gray-800">{format(startDate, "PPP")}</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 border border-gray-200 shadow-lg rounded-md" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                      onSelect={handleStartDateChange}
-                      className="rounded-md"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+            <div className="mt-3 flex items-center gap-2">
+              <Label className="text-sm font-medium text-gray-700 mr-1">From</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="justify-start text-left font-normal h-9 text-sm border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
+                  >
+                    <CalendarIcon className="mr-1 h-4 w-4 text-gray-500" />
+                    <span className="text-gray-800">{format(startDate, "MMM d, yyyy")}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border border-gray-200 shadow-lg rounded-md" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={handleStartDateChange}
+                    className="rounded-md"
+                  />
+                </PopoverContent>
+              </Popover>
               
-              <div className="flex items-center flex-1 min-w-[240px]">
-                <Label className="text-sm font-medium text-gray-700 mr-3 w-14">To</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal h-9 text-sm border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4 text-gray-500" />
-                      <span className="text-gray-800">{endDate ? format(endDate, "PPP") : <span className="text-gray-500">Pick a date</span>}</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 border border-gray-200 shadow-lg rounded-md" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={endDate}
-                      onSelect={handleEndDateChange}
-                      className="rounded-md"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <Label className="text-sm font-medium text-gray-700 mx-1">To</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="justify-start text-left font-normal h-9 text-sm border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
+                  >
+                    <CalendarIcon className="mr-1 h-4 w-4 text-gray-500" />
+                    <span className="text-gray-800">{endDate ? format(endDate, "MMM d, yyyy") : <span className="text-gray-500">Pick a date</span>}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 border border-gray-200 shadow-lg rounded-md" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={handleEndDateChange}
+                    className="rounded-md"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           

@@ -5,17 +5,13 @@ import { format, parse, isValid, addDays, differenceInDays, isAfter, isBefore, i
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { CalendarIcon, Play, Pause, ChevronLeft, ChevronRight, Clock, ChevronDown, ChevronUp } from "lucide-react"
+import { CalendarIcon, Play, Pause, ChevronLeft, ChevronRight, Clock, ChevronDown, ChevronUp, Layers } from "lucide-react"
 
 export interface TimelineData {
   date: string; // ISO date string
-  count: number; // Number of events on this date
+  count: number; // Number of items on this date
 }
 
 export interface TimelineSliderProps {
@@ -31,17 +27,23 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
   const [startDate, setStartDate] = useState<Date | null>(null)
   const [endDate, setEndDate] = useState<Date | null>(null)
   const [currentDate, setCurrentDate] = useState<Date | null>(null)
-  const [sliderValue, setSliderValue] = useState<number>(0)
+  const [sliderValue, setSliderValue] = useState<number>(0);
+  const [userHasInteracted, setUserHasInteracted] = useState<boolean>(false);
   const [isPlaying, setIsPlaying] = useState(false)
   const [totalDays, setTotalDays] = useState(0)
   const [eventsPerDay, setEventsPerDay] = useState<Record<string, number>>({})
   const [maxEventsPerDay, setMaxEventsPerDay] = useState(0)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const playInterval = useRef<NodeJS.Timeout | null>(null)
+  const prevQueryResultsRef = useRef<any>(null);
   
+  // State to track the actual count of events for the current date
+  const [currentDateEventCount, setCurrentDateEventCount] = useState<number>(0);
+
   // Extract timeline data from query results
   useEffect(() => {
     console.log('Timeline processing query results:', queryResults);
+    console.log('Current result count:', resultCount);
 
     // Default dates if no data is available
     const today = new Date();
@@ -52,90 +54,110 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
     let maxDate: Date | null = null;
     let allDates: Record<string, number> = {};
 
-    // If no query results, create default timeline
+    // If no query results, create empty timeline
     if (!queryResults || !queryResults.results || Object.keys(queryResults.results).length === 0) {
-      setStartDate(yesterday);
-      setEndDate(tomorrow);
-      setCurrentDate(today);
-      setTotalDays(3);
-      setTimelineData([
-        { date: format(yesterday, 'yyyy-MM-dd'), count: 0 },
-        { date: format(today, 'yyyy-MM-dd'), count: resultCount },
-        { date: format(tomorrow, 'yyyy-MM-dd'), count: 0 }
-      ]);
+      setStartDate(null);
+      setEndDate(null);
+      setCurrentDate(null);
+      setTotalDays(0);
+      setTimelineData([]);
       setEventsPerDay({});
       setMaxEventsPerDay(0);
       return;
     }
 
-    // Support both array and object forms for backward compatibility
-    let trafficEvents: any[] = [];
-    if (Array.isArray(queryResults.results)) {
-      trafficEvents = queryResults.results[0]?.traffic_events || [];
-    } else if (queryResults.results.traffic_events && Array.isArray(queryResults.results.traffic_events)) {
-      trafficEvents = queryResults.results.traffic_events;
+    // Check if there's a user-selected date range in the query parameters
+    const userStartDate = queryResults.query?.parameters?.temporal_join_conditions?.[0]?.expressions?.find(
+      (expr: any) => expr.operator === '>='
+    )?.value;
+    
+    const userEndDate = queryResults.query?.parameters?.temporal_join_conditions?.[0]?.expressions?.find(
+      (expr: any) => expr.operator === '<='
+    )?.value;
+    
+    console.log('User selected date range:', userStartDate, 'to', userEndDate);
+    
+    // If user has selected a date range, use that instead of the data's date range
+    if (userStartDate && userEndDate) {
+      try {
+        minDate = parse(userStartDate, 'yyyy-MM-dd', new Date());
+        maxDate = parse(userEndDate, 'yyyy-MM-dd', new Date());
+        console.log('Using user-selected date range:', format(minDate, 'yyyy-MM-dd'), 'to', format(maxDate, 'yyyy-MM-dd'));
+      } catch (error) {
+        console.error('Error parsing user date range:', error);
+      }
     }
 
-    // Extract all event dates
-    const eventDates = trafficEvents
-      .map((event) => event.date_start && typeof event.date_start === 'string' ? event.date_start.split('T')[0] : null)
-      .filter((date): date is string => !!date);
-    eventDates.forEach(date => {
-      allDates[date] = (allDates[date] || 0) + 1;
-    });
-    if (eventDates.length > 0) {
-      minDate = parse(eventDates.reduce((min, d) => d < min ? d : min, eventDates[0]), 'yyyy-MM-dd', new Date());
-      maxDate = parse(eventDates.reduce((max, d) => d > max ? d : max, eventDates[0]), 'yyyy-MM-dd', new Date());
-    }
+    // Process all datasets to extract dates
+    // Define possible date field names across all datasets
+    const dateFields = [
+      // Primary date fields (start dates)
+      'date_start', 'start_date', 'date', 'timestamp', 'event_date', 'data_retrieval_timestamp',
+      // Update date fields
+      'date_update', 'last_update_date', 'last_update', 'updatetime', 'update_time', 'modified_date',
+      // End date fields
+      'date_end', 'end_date', 'precipitation_date_start',
+      // Other possible date fields
+      'created_date', 'start_time', 'end_time'
+    ];
 
-    // Fallback: scan all datasets for date fields if no traffic_events
-    if (eventDates.length === 0) {
-      Object.entries(queryResults.results).forEach(([datasetName, items]: [string, any]) => {
-        if (Array.isArray(items) && items.length > 0) {
-          items.forEach(item => {
-            const dateFields = [
-              'date_start', 'start_date', 'date', 'timestamp', 'event_date', 
-              'created_date', 'modified_date', 'start_time', 'end_time',
-              'last_update_date', 'last_update', 'updatetime', 'update_time',
-              'date_end', 'end_date', 'date_update'
-            ];
-            let dateValue: string | null = null;
+    // Process all datasets in the results
+    if (queryResults.results) {
+      // Handle both array and object response formats
+      const datasets = Array.isArray(queryResults.results) 
+        ? queryResults.results 
+        : [queryResults.results];
+      
+      datasets.forEach((dataset: Record<string, any>) => {
+        // Process each dataset type (traffic_events, rest_area_info, etc.)
+        Object.entries(dataset).forEach(([datasetName, items]: [string, any]) => {
+          if (Array.isArray(items) && items.length > 0) {
+            // Determine which date field to use for this dataset type
+            let primaryDateField = '';
+            
+            // Check the first item to determine which date fields exist
+            const sampleItem = items[0];
             for (const field of dateFields) {
-              if (item[field] && typeof item[field] === 'string') {
-                dateValue = item[field].includes('T') ? item[field].split('T')[0] : item[field];
+              if (sampleItem[field] && typeof sampleItem[field] === 'string') {
+                primaryDateField = field;
+                console.log(`Using ${primaryDateField} for dataset ${datasetName}`);
                 break;
               }
             }
-            if (dateValue) {
-              const date = parse(dateValue, 'yyyy-MM-dd', new Date());
-              if (isValid(date)) {
-                const dateStr = format(date, 'yyyy-MM-dd');
-                allDates[dateStr] = (allDates[dateStr] || 0) + 1;
-                if (!minDate || isBefore(date, minDate)) minDate = date;
-                if (!maxDate || isAfter(date, maxDate)) maxDate = date;
-                
-                if (isValid(date)) {
-                  const dateStr = format(date, 'yyyy-MM-dd');
-                  console.log(`Valid date parsed: ${dateStr}`);
+            
+            if (primaryDateField) {
+              // Extract dates from all items using the identified date field
+              items.forEach(item => {
+                if (item[primaryDateField] && typeof item[primaryDateField] === 'string') {
+                  const dateValue = item[primaryDateField].includes('T') 
+                    ? item[primaryDateField].split('T')[0] 
+                    : item[primaryDateField];
                   
-                  // Count events per day
-                  allDates[dateStr] = (allDates[dateStr] || 0) + 1;
-                  
-                  // Track min and max dates
-                  if (!minDate || isBefore(date, minDate)) {
-                    minDate = date;
-                    console.log(`New min date: ${format(minDate, 'yyyy-MM-dd')}`);
-                  }
-                  
-                  if (!maxDate || isAfter(date, maxDate)) {
-                    maxDate = date;
-                    console.log(`New max date: ${format(maxDate, 'yyyy-MM-dd')}`);
+                  try {
+                    const date = parse(dateValue, 'yyyy-MM-dd', new Date());
+                    if (isValid(date)) {
+                      const dateStr = format(date, 'yyyy-MM-dd');
+                      
+                      // Count items per day
+                      allDates[dateStr] = (allDates[dateStr] || 0) + 1;
+                      
+                      // Track min and max dates
+                      if (!minDate || isBefore(date, minDate)) {
+                        minDate = date;
+                      }
+                      
+                      if (!maxDate || isAfter(date, maxDate)) {
+                        maxDate = date;
+                      }
+                    }
+                  } catch (error) {
+                    console.error(`Error parsing date ${dateValue}:`, error);
                   }
                 }
-              }
+              });
             }
-          });
-        }
+          }
+        });
       });
     }
     
@@ -175,15 +197,15 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
     // Create timeline data array
     const timeline: TimelineData[] = [];
     let currentDay = new Date(minDate);
-    let maxEvents = 0;
+    let maxItems = 0;
     
     for (let i = 0; i < days; i++) {
       const dateStr = format(currentDay, 'yyyy-MM-dd');
       const count = allDates[dateStr] || 0;
       
-      // Track max events per day for scaling
-      if (count > maxEvents) {
-        maxEvents = count;
+      // Track max items per day for scaling
+      if (count > maxItems) {
+        maxItems = count;
       }
       
       timeline.push({
@@ -192,24 +214,45 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
       });
       
       currentDay = addDays(currentDay, 1);
+    
     }
     
-    console.log(`Created timeline with ${timeline.length} days, max events: ${maxEvents}`);
+    console.log(`Created timeline with ${timeline.length} days, max items: ${maxItems}`);
     console.log('Timeline data:', JSON.stringify(timeline));
-    
     
     setTimelineData(timeline);
     setEventsPerDay(allDates);
-    setMaxEventsPerDay(maxEvents);
-    
-    // Notify parent of initial date
-    onTimeChange(format(minDate, 'yyyy-MM-dd'));
+    setMaxEventsPerDay(maxItems);
   }, [queryResults, resultCount]);
+  
+  // Update current date event count whenever the current date or events per day changes
+  useEffect(() => {
+    if (currentDate) {
+      const formattedDate = format(currentDate, 'yyyy-MM-dd');
+      const eventsOnThisDay = eventsPerDay[formattedDate] || 0;
+      setCurrentDateEventCount(eventsOnThisDay);
+      console.log(`Updated event count for ${formattedDate}: ${eventsOnThisDay}`);
+    } else {
+      setCurrentDateEventCount(0);
+    }
+  }, [currentDate, eventsPerDay]);
+  
+  // Reset to show all when the query results change
+  useEffect(() => {
+    // When query results change, reset user interaction state
+    if (queryResults && queryResults !== prevQueryResultsRef.current) {
+      setUserHasInteracted(false);
+      prevQueryResultsRef.current = queryResults;
+    }
+  }, [queryResults]);
   
   // Handle slider change
   const handleSliderChange = (value: number[]) => {
     const sliderPos = value[0];
     setSliderValue(sliderPos);
+    
+    // Mark that the user has interacted with the timeline
+    setUserHasInteracted(true);
     
     if (startDate && totalDays > 0) {
       // Calculate the date based on slider position
@@ -217,9 +260,13 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
       const newDate = addDays(startDate, daysToAdd);
       setCurrentDate(newDate);
       
-      // Notify parent component of date change
+      // Update the event count for this specific date
       const formattedDate = format(newDate, 'yyyy-MM-dd');
-      console.log(`Slider changed to date: ${formattedDate}`);
+      const eventsOnThisDay = eventsPerDay[formattedDate] || 0;
+      setCurrentDateEventCount(eventsOnThisDay);
+      
+      // Notify parent component of date change
+      console.log(`Slider changed to date: ${formattedDate}, events: ${eventsOnThisDay}`);
       onTimeChange(formattedDate);
     }
   };
@@ -243,9 +290,13 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
         setSliderValue(newSliderValue);
       }
       
-      // Notify parent component of date change
+      // Update the event count for this specific date
       const formattedDate = format(date, 'yyyy-MM-dd');
-      console.log(`Calendar date selected: ${formattedDate}`);
+      const eventsOnThisDay = eventsPerDay[formattedDate] || 0;
+      setCurrentDateEventCount(eventsOnThisDay);
+      
+      // Notify parent component of date change
+      console.log(`Calendar date selected: ${formattedDate}, events: ${eventsOnThisDay}`);
       onTimeChange(formattedDate);
     }
   };
@@ -290,7 +341,7 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
             handleDateSelect(nextDate);
           }
         }
-      }, 1000); // 1 second between steps
+      }, 1300); // 1 second between steps
     } else {
       // Stop playback
       if (playInterval.current) {
@@ -330,14 +381,25 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
         <div className="flex items-center space-x-2">
           <Clock className="h-4 w-4 text-gray-500" />
           <h3 className="text-sm font-medium">Time Explorer</h3>
-          <span className="text-xs text-gray-500">
-            {resultCount} {resultCount === 1 ? 'result' : 'results'}
+          <span className="text-xs text-gray-500 font-semibold">
+            {!startDate ? 
+              // When no data is loaded
+              '-' :
+              userHasInteracted ? 
+                // When user has interacted, show count for the current selected date
+                `${currentDateEventCount} ${currentDateEventCount === 1 ? 'item' : 'items'}` : 
+                // Show total count when no specific date is selected
+                `${resultCount} ${resultCount === 1 ? 'item' : 'items'}`
+            }
           </span>
         </div>
         
         <div className="flex items-center space-x-2">
           <span className="text-xs text-gray-500">
-            {startDate && format(startDate, 'MMM d, yyyy')} - {endDate && format(endDate, 'MMM d, yyyy')}
+            {startDate && endDate ? 
+              `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}` : 
+              '-'
+            }
           </span>
           
           <Popover>
@@ -346,6 +408,7 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
                 variant="outline"
                 size="sm"
                 className="h-8 justify-start text-left font-normal"
+                disabled={!startDate || !endDate}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {currentDate ? format(currentDate, 'MMM d, yyyy') : <span>Select date</span>}
@@ -378,78 +441,165 @@ export function TimelineSliderNew({ queryResults, onTimeChange, className, resul
         </div>
       </div>
       
-      <div className="space-y-4">
-        {/* Timeline visualization */}
-        <div className="relative h-16 bg-gray-100 rounded-md overflow-hidden">
-          {timelineData.map((day, index) => {
-            const position = (index / (timelineData.length - 1 || 1)) * 100;
-            const height = maxEventsPerDay > 0 
-              ? (day.count / maxEventsPerDay) * 100 
-              : 0;
-            
-            return (
-              <div
-                key={day.date}
-                className="absolute bottom-0 bg-blue-500 w-1"
-                style={{
-                  left: `${position}%`,
-                  height: `${height}%`,
-                  opacity: currentDate && format(currentDate, 'yyyy-MM-dd') === day.date ? 1 : 0.5
-                }}
-                title={`${day.date}: ${day.count} events`}
-              />
-            );
-          })}
-          
-          {/* Current position indicator */}
-          {currentDate && (
-            <div 
-              className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-              style={{
-                left: `${sliderValue}%`
-              }}
-            />
+      <div className="space-y-2">
+        {/* Header with date info and controls in a single row */}
+        <div className="flex items-center justify-between text-xs text-gray-600 px-2 py-1">
+          {!startDate ? (
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">Date:</span>
+                <span className="font-bold text-blue-600">-</span>
+              </div>
+              
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">Items:</span>
+                <span className="font-bold text-blue-600">-</span>
+              </div>
+              
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">Range:</span>
+                <span className="font-bold text-blue-600">-</span>
+              </div>
+            </div>
+          ) : currentDate && (
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">Date:</span>
+                <span className="font-bold text-blue-600">{format(currentDate, 'MMM d, yyyy')}</span>
+              </div>
+              
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">Items:</span>
+                <span className="font-bold text-blue-600">{eventsPerDay[format(currentDate, 'yyyy-MM-dd')] || 0}</span>
+              </div>
+              
+              <div className="flex items-center space-x-1">
+                <span className="text-gray-500">Range:</span>
+                <span className="font-bold text-blue-600">{totalDays > 0 ? `${totalDays} days` : '-'}</span>
+              </div>
+            </div>
           )}
+          
+          {/* Right side empty to balance layout */}
+          <div></div>
         </div>
         
-        {/* Slider control */}
-        <div className="flex items-center space-x-2">
+        {/* Compact timeline visualization */}
+        <div className="relative h-12 bg-gray-100 rounded-md overflow-hidden">
+          {/* Histogram bars */}
+          <div className="absolute bottom-0 left-0 right-0 h-10 flex justify-between px-4">
+            {timelineData.map((day, index) => {
+              // Calculate height based on event count
+              const height = maxEventsPerDay > 0 
+                ? (day.count / maxEventsPerDay) * 100 
+                : 0;
+              
+              // Ensure the bar is visible even with low counts
+              const minHeight = height > 0 ? Math.max(height, 10) : 0;
+              
+              // Calculate width based on number of days
+              const barWidth = timelineData.length <= 7 ? 100 / timelineData.length * 0.6 : 8;
+              
+              // Check if this is the current date
+              const isCurrentDate = currentDate && format(currentDate, 'yyyy-MM-dd') === day.date;
+              
+              return (
+                <div 
+                  key={day.date}
+                  className="relative flex flex-col items-center justify-end h-full"
+                  style={{ width: `${barWidth}%` }}
+                >
+                  {/* Add a red line indicator for the current date */}
+                  {isCurrentDate && (
+                    <div 
+                      className="absolute top-0 bottom-0 bg-red-500 z-10"
+                      style={{
+                        left: '50%',
+                        width: '2px',
+                        marginLeft: '-1px' // Center the line
+                      }}
+                    />
+                  )}
+                  
+                  <div
+                    className={`rounded-t-sm ${isCurrentDate ? 'bg-blue-600' : 'bg-blue-400'}`}
+                    style={{
+                      height: `${minHeight}%`,
+                      width: '100%',
+                      transition: 'height 0.2s ease-in-out'
+                    }}
+                    title={`${format(parse(day.date, 'yyyy-MM-dd', new Date()), 'MMM d')}: ${day.count} items`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Slider control - more compact */}
+        <div className="flex items-center space-x-2 py-1">
           <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={togglePlayback}
-            disabled={!startDate || !endDate}
+            variant="default"
+            size="sm"
+            className="h-8 transition-all shadow-sm"
+            onClick={() => {
+              // Send a special value to indicate "show all"
+              onTimeChange('all');
+              // Reset user interaction state to match the UI state
+              setUserHasInteracted(false);
+            }}
+            // Always enabled
           >
-            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            <Layers className="h-4 w-4 mr-1" />
+            Show All
           </Button>
           
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={stepBackward}
-            disabled={!currentDate || !startDate || isEqual(currentDate, startDate)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+          <div className="flex bg-white rounded-md shadow-sm overflow-hidden border">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-none border-r"
+              onClick={togglePlayback}
+              disabled={!startDate || !endDate}
+            >
+              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-none border-r"
+              onClick={stepBackward}
+              disabled={!startDate || !currentDate || !startDate || isEqual(currentDate, startDate)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-none"
+              onClick={stepForward}
+              disabled={!startDate || !currentDate || !endDate || isEqual(currentDate, endDate)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
           
           <Slider
             value={[sliderValue]}
             onValueChange={handleSliderChange}
-            className="flex-1"
-            disabled={totalDays === 0}
+            className="flex-1 timeline-slider-custom"
+            disabled={totalDays === 0 || !startDate}
           />
           
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={stepForward}
-            disabled={!currentDate || !endDate || isEqual(currentDate, endDate)}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          {/* Custom CSS for the slider thumb */}
+          <style jsx global>{`
+            .timeline-slider-custom [role="slider"] {
+              height: 12px !important;
+              width: 12px !important;
+            }
+          `}</style>
         </div>
       </div>
     </div>

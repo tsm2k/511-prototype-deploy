@@ -4,8 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/router"
 import { useToast } from "@/components/ui/use-toast"
 import * as turf from "@turf/turf"
-import { IntersectionDialog } from "@/components/ui/intersection-dialog"
-import { NoIntersectionAlert } from "@/components/ui/no-intersection-alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -13,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
-import { AlertCircle, ChevronDown, ChevronUp, X, Search, Pencil, Circle } from "lucide-react"
+import { AlertCircle, ChevronDown, ChevronUp, X, Search, Pencil, Circle, Plus } from "lucide-react"
 
 // Import from centralized API service
 import { fetchLocationData, LocationData } from "@/services/api"
@@ -42,14 +40,9 @@ interface PolygonCoordinates {
   } | null;
 }
 
-// Define the interface for road selection with mile marker range
-interface RoadSelection {
-  road: string
-  mileMarkerRange: MileMarkerRange
-}
-
 // Define the types of location selections
-type LocationSelectionType = "road" | "city" | "district" | "subdistrict" | "polygon" | "county"
+type LocationSelectionType = "road" | "city" | "district" | "subdistrict" | "polygon" | "county" | "poi" | "intersection"
+
 
 // Define the interface for location selections
 interface LocationSelection {
@@ -58,6 +51,7 @@ interface LocationSelection {
   operator: "AND" | "OR"
   mileMarkerRange?: MileMarkerRange
   poiRadius?: number // Radius in miles for Points of Interest
+  coordinates?: number[][] // Coordinates for intersections and other geometries
 }
 
 export interface LocationSelectorProps {
@@ -130,6 +124,9 @@ export function LocationSelector({
   // State for agency defined districts
   const [agencyDistricts, setAgencyDistricts] = useState<string[]>([])
   
+  // Get toast function from useToast hook
+  const { toast } = useToast()
+  
   // State for confirmation dialogs
   const [showAddConfirmation, setShowAddConfirmation] = useState<boolean>(false)
   const [showClearConfirmation, setShowClearConfirmation] = useState<boolean>(false)
@@ -140,16 +137,19 @@ export function LocationSelector({
   const [selectedAgencySubdistricts, setSelectedAgencySubdistricts] = useState<string[]>([])
   const [agencyDistrictTab, setAgencyDistrictTab] = useState<'district' | 'subdistrict'>('district')
   
+  // State for intersection popup
+  const [showIntersectionPopup, setShowIntersectionPopup] = useState<boolean>(false)
+  const [intersectionType, setIntersectionType] = useState<'road-city' | 'road-district' | null>(null)
+  const [intersectionItems, setIntersectionItems] = useState<{road: string, entity: string}>({
+    road: '',
+    entity: ''
+  })
+  
   // State to track active tab
   const [activeTab, setActiveTab] = useState<string>("points-of-interest")
   
-  // State for intersection dialog
-  const [showIntersectionDialog, setShowIntersectionDialog] = useState(false)
-  const [pendingRoadSelections, setPendingRoadSelections] = useState<string[]>([])
-  const [pendingPoliticalSubdivisions, setPendingPoliticalSubdivisions] = useState<{name: string, type: 'city' | 'county' | 'district' | 'subdistrict', feature: any}[]>([])
-  const [intersectionNoResults, setIntersectionNoResults] = useState(false)
-  const [showNoIntersectionAlert, setShowNoIntersectionAlert] = useState(false);
-  const [noIntersectionInfo, setNoIntersectionInfo] = useState<{roadName: string, subdivisionName: string}>({roadName: '', subdivisionName: ''});
+  const [pendingRoadSelections] = useState<string[]>([])
+  const [pendingPoliticalSubdivisions] = useState<{name: string, type: 'city' | 'county' | 'district' | 'subdistrict', feature: any}[]>([])
   
   // Fetch points of interest from GeoJSON file
   useEffect(() => {
@@ -255,6 +255,30 @@ export function LocationSelector({
     loadDistricts();
   }, []);
   
+  // Listen for POI removal events from selections list
+  useEffect(() => {
+    const handlePoiRemoved = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail || {};
+      const poiName = detail.name;
+      
+      if (poiName && selectedPointsOfInterest.includes(poiName)) {
+        console.log('POI removed from selections, updating checkbox state:', poiName);
+        // Update the selected POIs state to uncheck the checkbox
+        const updatedPOIs = selectedPointsOfInterest.filter(p => p !== poiName);
+        onSelectedPointsOfInterestChange?.(updatedPOIs);
+      }
+    };
+    
+    // Add event listener
+    window.addEventListener('poi-removed', handlePoiRemoved);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('poi-removed', handlePoiRemoved);
+    };
+  }, [selectedPointsOfInterest, onSelectedPointsOfInterestChange]);
+  
   // Fetch agency subdistricts from GeoJSON file
   useEffect(() => {
     const loadSubdistricts = async () => {
@@ -273,16 +297,181 @@ export function LocationSelector({
     loadSubdistricts();
   }, []);;
   
+  // Debug selections state
+  useEffect(() => {
+    console.log('Current selections state:', selections);
+    
+    // Check for any intersection selections
+    const intersectionSelections = selections.filter(s => s.type === 'intersection');
+    if (intersectionSelections.length > 0) {
+      console.log('Found intersection selections:', intersectionSelections);
+    }
+  }, [selections]);
+  
+  // Handle the case when no intersection is found
+  useEffect(() => {
+    const handleNoIntersectionFound = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { roadName, entityName, entityType } = customEvent.detail;
+      
+      console.log('No intersection found event received:', customEvent.detail);
+      
+      // Show a toast notification to the user
+      toast({
+        title: "No Intersection Found",
+        description: `The selected road (${roadName}) and entity (${entityName}) don't overlap on the map. Please try a different combination.`,
+        variant: "destructive",
+        duration: 5000
+      });
+      
+      // Clear all selections as if nothing happened
+      if (onSelectionsChange) {
+        console.log('Clearing all selections due to no intersection found');
+        onSelectionsChange([]);
+      }
+      
+      // Clear all UI checkboxes
+      if (setSelectedRoads) setSelectedRoads([]);
+      if (setSelectedCities) setSelectedCities([]);
+      if (setSelectedCounties) setSelectedCounties([]);
+      if (setSelectedAgencyDistricts) setSelectedAgencyDistricts([]);
+      setSelectedAgencySubdistricts([]);
+    };
+    
+    // Handle successful intersection calculation
+    const handleIntersectionAdded = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { id, roadName, entityName, entityType } = customEvent.detail;
+      
+      console.log('Intersection added event received:', customEvent.detail);
+      
+      // Get the coordinates of the intersection from the map
+      // We need to get the GeoJSON data from the map source
+      const intersectionEvent = new CustomEvent('get-intersection-coordinates', {
+        detail: { id }
+      });
+      
+      // Request the coordinates from the map
+      window.dispatchEvent(intersectionEvent);
+      
+      // Show a toast notification to the user
+      toast({
+        title: "Intersection Found",
+        description: `Successfully found the intersection between ${roadName} and ${entityName}.`,
+        duration: 3000
+      });
+    };
+    
+    // Handle receiving the intersection coordinates from the map
+    const handleIntersectionCoordinates = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { id, coordinates, roadName, entityName } = customEvent.detail;
+      
+      console.log('Received intersection coordinates:', customEvent.detail);
+      
+      if (!coordinates || coordinates.length === 0) {
+        console.error('No coordinates received for intersection');
+        return;
+      }
+      
+      // Find the intersection selection in the current selections
+      const intersectionSelection = selections.find(s => 
+        s.type === "intersection" && 
+        typeof s.selection === 'string' && 
+        s.selection === `${roadName} ∩ ${entityName}`
+      );
+      
+      if (!intersectionSelection) {
+        console.error('Could not find intersection selection to update');
+        return;
+      }
+      
+      // Update the intersection selection with the coordinates
+      const updatedSelections = selections.map(s => {
+        if (s.type === "intersection" && 
+            typeof s.selection === 'string' && 
+            s.selection === `${roadName} ∩ ${entityName}`) {
+          // Add the coordinates to the selection
+          return {
+            ...s,
+            coordinates: coordinates
+          };
+        }
+        return s;
+      });
+      
+      // Update the selections state
+      onSelectionsChange?.(updatedSelections);
+    };
+    
+    // Add event listeners
+    window.addEventListener('intersection-not-found', handleNoIntersectionFound as EventListener);
+    window.addEventListener('intersection-added', handleIntersectionAdded as EventListener);
+    window.addEventListener('intersection-coordinates', handleIntersectionCoordinates as EventListener);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('intersection-not-found', handleNoIntersectionFound as EventListener);
+      window.removeEventListener('intersection-added', handleIntersectionAdded as EventListener);
+      window.removeEventListener('intersection-coordinates', handleIntersectionCoordinates as EventListener);
+    };
+  }, [toast, onSelectionsChange, setSelectedRoads, setSelectedCities, setSelectedCounties, setSelectedAgencyDistricts]);
+  
+  // Handle polygon drawing events from the map
+  useEffect(() => {
+    const handlePolygonDrawn = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { featureId, coordinates, type, boundingBox } = customEvent.detail;
+      
+      console.log('Polygon drawn event received:', customEvent.detail);
+      
+      // Add the new polygon to the drawnPolygons state
+      setDrawnPolygons(prev => [
+        ...prev,
+        {
+          featureId,
+          coordinates,
+          type,
+          boundingBox
+        }
+      ]);
+      
+      // Select the newly drawn polygon
+      setSelectedPolygonId(featureId);
+      
+      // Show a toast notification
+      toast({
+        title: "Polygon Drawn",
+        description: "Polygon has been drawn. You can now add it to your selections.",
+        duration: 3000
+      });
+    };
+    
+    // Add event listener for polygon drawing
+    window.addEventListener('location-polygon-drawn', handlePolygonDrawn as EventListener);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('location-polygon-drawn', handlePolygonDrawn as EventListener);
+    };
+  }, [toast]);
+  
   // Fetch roads from GeoJSON file
   useEffect(() => {
     const fetchRoads = async () => {
+      setLoading(true); // Ensure loading state is true at the start
       try {
+        console.log('Fetching roads...');
         const roadNames = await getAllRoadNames()
+        console.log(`Loaded ${roadNames.length} roads`);
         setLocations(roadNames)
       } catch (error) {
         console.error('Error fetching roads:', error)
         // Fallback to empty array if fetch fails
         setLocations([])
+      } finally {
+        // Set loading to false regardless of success or failure
+        setLoading(false);
       }
     }
     
@@ -292,9 +481,9 @@ export function LocationSelector({
   // Remove the global mileMarkerRange state as we'll use per-road ranges
   const [drawMode, setDrawMode] = useState<"polygon" | "circle" | null>(null)
   const [searchRoad, setSearchRoad] = useState("")
-  const [searchLocation, setSearchLocation] = useState("")
+  // const [searchLocation, setSearchLocation] = useState("")
   const [searchDistrict, setSearchDistrict] = useState("")
-  const [searchPOI, setSearchPOI] = useState("")
+  // const [searchPOI, setSearchPOI] = useState("")
   
   // State for drawn polygons
   const [drawnPolygons, setDrawnPolygons] = useState<PolygonCoordinates[]>([])
@@ -309,80 +498,9 @@ export function LocationSelector({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Listen for polygon drawing events from MapView
-  useEffect(() => {
-    const handlePolygonDrawn = (event: CustomEvent) => {
-      console.log('Polygon drawn event received:', event.detail);
-      // Add the new polygon to state
-      setDrawnPolygons(prev => [...prev, event.detail]);
-      // Automatically select the new polygon
-      setSelectedPolygonId(event.detail.featureId);
-      // Reset draw mode
-      setDrawMode(null);
-    };
-    
-    const handlePolygonUpdated = (event: CustomEvent) => {
-      console.log('Polygon updated event received:', event.detail);
-      // Update the polygon in state
-      setDrawnPolygons(prev => 
-        prev.map(poly => 
-          poly.featureId === event.detail.featureId ? event.detail : poly
-        )
-      );
-    };
-    
-    const handlePolygonDeleted = (event: CustomEvent) => {
-      console.log('Polygon deleted event received:', event.detail);
-      // Remove the deleted polygons from state
-      setDrawnPolygons(prev => 
-        prev.filter(poly => !event.detail.featureIds.includes(poly.featureId))
-      );
-      // Clear selection if the selected polygon was deleted
-      if (selectedPolygonId && event.detail.featureIds.includes(selectedPolygonId)) {
-        setSelectedPolygonId(null);
-      }
-    };
-    
-    // Add event listeners
-    window.addEventListener('location-polygon-drawn', handlePolygonDrawn as EventListener);
-    window.addEventListener('location-polygon-updated', handlePolygonUpdated as EventListener);
-    window.addEventListener('location-polygon-deleted', handlePolygonDeleted as EventListener);
-    
-    return () => {
-      // Clean up event listeners
-      window.removeEventListener('location-polygon-drawn', handlePolygonDrawn as EventListener);
-      window.removeEventListener('location-polygon-updated', handlePolygonUpdated as EventListener);
-      window.removeEventListener('location-polygon-deleted', handlePolygonDeleted as EventListener);
-    };
-  }, []);
-  
-  // Fetch location data from API
-  useEffect(() => {
-    const getLocationData = async () => {
-      setLoading(true)
-      try {
-        // Use the centralized API service to fetch location data
-        const data = await fetchLocationData('event_location_info')
-        setLocationData(data)
-        setError(null)
-      } catch (err) {
-        console.error('Error fetching location data:', err)
-        setError('Failed to fetch location data. Using fallback data.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    
-    getLocationData()
-  }, [])
-  
-  // Filter functions using the GeoJSON data for roads
+// Filter functions using the GeoJSON data for roads
   const filteredRoads = locations.filter(road => 
     road.toLowerCase().includes(searchRoad.toLowerCase())
-  )
-
-  const filteredLocations = locationData.city.filter(location => 
-    location.toLowerCase().includes(searchLocation.toLowerCase())
   )
 
   const filteredDistricts = locationData.district.filter(district => 
@@ -409,506 +527,392 @@ export function LocationSelector({
     ? agencySubdistricts.filter(subdistrict => subdistrict.toLowerCase().includes(subdistrictSearchQuery.toLowerCase()))
     : agencySubdistricts;
 
-  // Toggle functions updated to use dynamic data
-  const toggleAllRoads = () => {
-    const updatedRoads = selectedRoads.length === locations.length ? [] : [...locations];
-    
-    // Always update both state and call callback
-    setSelectedRoads?.(updatedRoads);
-    onSelectedRoadsChange?.(updatedRoads);
-  }
-
-  const toggleAllLocations = () => {
-    const updatedLocations = selectedLocations.length === locationData.city.length ? [] : [...locationData.city];
-    
-    // Always update both state and call callback
-    setSelectedLocations?.(updatedLocations);
-    onSelectedLocationsChange?.(updatedLocations);
-  }
 
   const toggleAllDistricts = () => {
     const updatedDistricts = selectedDistricts.length === locationData.district.length ? [] : [...locationData.district];
-    
-    // Always update both state and call callback
-    setSelectedDistricts?.(updatedDistricts);
-    onSelectedDistrictsChange?.(updatedDistricts);
-  }
-
-  const toggleAllPointsOfInterest = () => {
-    const updatedPOIs = selectedPointsOfInterest.length === pointsOfInterest.length ? [] : [...pointsOfInterest];
-    
-    // Always update both state and call callback
-    setSelectedPointsOfInterest?.(updatedPOIs);
-    onSelectedPointsOfInterestChange?.(updatedPOIs);
-  }
-
-  const toggleAllCities = () => {
-    const updatedCities = selectedCities.length === cities.length ? [] : [...cities];
-    
-    // Always update both state and call callback
-    setSelectedCities?.(updatedCities);
-  }
-
-  const toggleAllCounties = () => {
-    const updatedCounties = selectedCounties.length === counties.length ? [] : [...counties];
-    
-    // Always update both state and call callback
-    setSelectedCounties?.(updatedCounties);
-  }
-
-  const toggleAllAgencyDistricts = () => {
-    const updatedDistricts = selectedAgencyDistricts.length === agencyDistricts.length ? [] : [...agencyDistricts];
-
-    // Always update state
-    setSelectedAgencyDistricts(updatedDistricts);
-  }
-
-  const toggleAllAgencySubdistricts = () => {
-    const updatedSubdistricts = selectedAgencySubdistricts.length === agencySubdistricts.length ? [] : [...agencySubdistricts];
-
-    // Always update state
-    setSelectedAgencySubdistricts(updatedSubdistricts);
+    // Add implementation if needed
   }
   
-  // Function to remove a selection
-  const handleRemoveSelection = (index: number) => {
-    const selectionToRemove = selections[index];
+  // Function to determine if a tab should be disabled
+  const isTabDisabled = (tabName: string) => {
+    // If drawing mode is active, disable all tabs except the draw tab
+    if (drawMode) {
+      return tabName !== 'draw';
+    }
     
-    // Dispatch an event to notify the map to remove this selection
-    const event = new CustomEvent('selection-removed', {
-      detail: selectionToRemove
-    });
-    window.dispatchEvent(event);
+    // If there are no selections, all tabs are enabled
+    if (selections.length === 0) return false;
     
-    // Remove the selection from the array
-    const updatedSelections = selections.filter((_, i) => i !== index);
-    onSelectionsChange?.(updatedSelections);
+    // If there are selections, check if they include the current tab type
+    const hasSelectionOfType = (type: string) => selections.some(s => s.type === type);
+    
+    // If there are road selections, only the road tab is enabled
+    if (hasSelectionOfType('road')) {
+      // Road tab is always enabled if there are road selections
+      if (tabName === 'road') return false;
+      
+      // Political subdivisions tab is enabled if there are road selections
+      if (tabName === 'city') return false;
+      
+      // Agency districts tab is enabled if there are road selections
+      if (tabName === 'agency-districts') return false;
+      
+      // All other tabs are disabled
+      return true;
+    }
+    
+    // If there are city or county selections, only the political subdivisions tab is enabled
+    if (hasSelectionOfType('city') || hasSelectionOfType('county')) {
+      // Political subdivisions tab is always enabled if there are city/county selections
+      if (tabName === 'city') return false;
+      
+      // Road tab is enabled if there are city/county selections
+      if (tabName === 'road') return false;
+      
+      // All other tabs are disabled
+      return true;
+    }
+    
+    // If there are district or subdistrict selections, only the agency districts tab is enabled
+    if (hasSelectionOfType('district') || hasSelectionOfType('subdistrict')) {
+      // Agency districts tab is always enabled if there are district/subdistrict selections
+      if (tabName === 'agency-districts') return false;
+      
+      // Road tab is enabled if there are district/subdistrict selections
+      if (tabName === 'road') return false;
+      
+      // All other tabs are disabled
+      return true;
+    }
+    
+    // If there are POI selections, only the POI tab is enabled
+    if (hasSelectionOfType('poi')) {
+      return tabName !== 'points-of-interest';
+    }
+    
+    // If there are polygon selections, only the draw tab is enabled
+    if (hasSelectionOfType('polygon')) {
+      return tabName !== 'draw';
+    }
+    
+    // Default: no tabs are disabled
+    return false;
   };
+
   
-  // Function to handle intersection between road and political subdivision
-  const handleIntersection = async () => {
-    if (pendingRoadSelections.length === 0 || pendingPoliticalSubdivisions.length === 0) {
-      setShowIntersectionDialog(false);
+  // Function to handle removing a selection
+  const handleRemoveSelection = (index: number) => {
+    if (index < 0 || index >= selections.length) {
+      console.error('Invalid selection index:', index);
       return;
     }
     
-    try {
-      console.log('Starting intersection process with:', {
-        roads: pendingRoadSelections,
-        subdivisions: pendingPoliticalSubdivisions.map(s => `${s.type}: ${s.name}`)
+    const selectionToRemove = selections[index];
+    console.log('Removing selection:', selectionToRemove);
+    
+    // Create a new array without the removed selection
+    const updatedSelections = [...selections];
+    updatedSelections.splice(index, 1);
+    
+    // Update the selections state
+    onSelectionsChange?.(updatedSelections);
+    
+    // Handle different selection types
+    if (selectionToRemove.type === 'road') {
+      const roadName = selectionToRemove.selection as string;
+      console.log('Removing road selection:', roadName);
+      
+      // Dispatch road-specific removal event
+      const roadEvent = new CustomEvent('road-selection-removed', {
+        detail: {
+          type: 'road',
+          selection: roadName,
+          name: roadName,
+          fullSelection: selectionToRemove
+        }
       });
+      window.dispatchEvent(roadEvent);
+      console.log('Dispatched road-selection-removed event for:', roadName);
       
-      // Track if we found any intersections
-      let hasAnyIntersection = false;
+      // Also dispatch general selection-removed event
+      const selectionEvent = new CustomEvent('selection-removed', {
+        detail: {
+          type: 'road',
+          selection: roadName,
+          name: roadName
+        }
+      });
+      window.dispatchEvent(selectionEvent);
+      console.log('Dispatched selection-removed event for:', roadName);
       
-      // Process each road-subdivision pair
-      for (const roadName of pendingRoadSelections) {
-        // Get coordinates for this road
-        const roadCoords = await getRoadCoordinates(roadName);
-        
-        if (!roadCoords || roadCoords.length === 0) {
-          console.warn(`No coordinates found for road ${roadName}, skipping`);
-          continue;
+      // Finally dispatch a direct layer removal event with the exact layer ID
+      const layerEvent = new CustomEvent('remove-map-layer', {
+        detail: {
+          layerId: `road-layer-${roadName}`,
+          sourceId: `road-source-${roadName}`
         }
-        
-        console.log(`Processing road ${roadName} with ${roadCoords.length} segments`);
-        
-        // Create features for this road, handling MultiLineString geometries
-        const roadFeatures = [];
-        
-        for (const lineCoords of roadCoords) {
-          if (lineCoords && lineCoords.length >= 2) { // A valid line needs at least 2 points
-            console.log('Creating LineString with', lineCoords.length, 'points');
-            const lineFeature = turf.lineString(lineCoords);
-            roadFeatures.push(lineFeature);
-          } else {
-            console.warn('Invalid line coordinates, skipping', lineCoords);
-          }
-        }
-        
-        if (roadFeatures.length === 0) {
-          console.error(`No valid features found for road ${roadName}, skipping`);
-          continue;
-        }
-        
-        // Create a feature collection for this road
-        const roadCollection = turf.featureCollection(roadFeatures);
-        
-        // Process each political subdivision for this road
-        for (const subdivision of pendingPoliticalSubdivisions) {
-          const { name, type, feature } = subdivision;
-          
-          console.log(`Processing intersection between road ${roadName} and ${type} ${name}`);
-          
-          // Convert the feature to a proper GeoJSON feature if it's not already
-          let subdivisionFeature;
-          if (feature.type === 'Feature') {
-            subdivisionFeature = feature;
-          } else if (feature.geometry) {
-            subdivisionFeature = feature;
-          } else {
-            // If it's just a geometry, convert it to a feature
-            subdivisionFeature = turf.feature(feature);
-          }
-          
-          // Find the intersection for this road-subdivision pair
-          let intersections = [];
-          
-          for (const roadFeature of roadFeatures) {
-            try {
-              // Check if there's any intersection
-              const doesIntersect = turf.booleanIntersects(roadFeature, subdivisionFeature);
-              console.log(`Does ${roadName} intersect with ${name}?`, doesIntersect);
-              
-              if (doesIntersect) {
-                // If there's an intersection, find the actual intersection points
-                try {
-                  const intersection = turf.lineIntersect(roadFeature, subdivisionFeature);
-                  
-                  if (intersection.features.length > 0) {
-                    // Add all intersection points to our collection
-                    intersections.push(...intersection.features);
-                    hasAnyIntersection = true;
-                  }
-                } catch (intersectionError) {
-                  console.error('Error finding precise intersection:', intersectionError);
-                }
-              }
-            } catch (error) {
-              console.error('Error checking intersection:', error);
-            }
-          }
-          
-          if (intersections.length > 0) {
-            // Create a unique feature ID for this road-subdivision pair
-            const featureId = `${roadName}-${name}-${type}-intersection`;
-            
-            // Create a new selection for this intersection
-            const intersectionSelection: LocationSelection = {
-              type: 'polygon',
-              selection: {
-                featureId: featureId,
-                type: 'Intersection',
-                // Display the actual road and subdivision names
-                name: `${roadName} ∩ ${name}`,
-                coordinates: [[]],  // This will be updated by the map component
-                boundingBox: null,
-                southwest: [0, 0],
-                northeast: [0, 0]
-              } as PolygonCoordinates,
-              operator: 'AND'
-            };
-            
-            // Update selections state with this intersection
-            onSelectionsChange?.([...selections, intersectionSelection]);
-            
-            // Dispatch event for map to add this intersection
-            console.log(`Dispatching intersection event for ${roadName} and ${name} with ${intersections.length} features`);
-            
-            const event = new CustomEvent('intersection-added', {
-              detail: {
-                roadName: roadName,
-                subdivisionName: name,
-                subdivisionType: type,
-                roadFeature: roadCollection,
-                subdivisionFeature,
-                intersectionFeatures: intersections
-              }
-            });
-            window.dispatchEvent(event);
-            
-            console.log(`Intersection event dispatched for ${roadName} and ${name}`);
-          }
-        }
-      }
-      
-      // If no intersections were found at all, show the no results alert
-      if (!hasAnyIntersection) {
-        console.log('No intersections found for any road-subdivision pair');
-        setIntersectionNoResults(true);
-        
-        // Show the custom no intersection alert with the first road and subdivision
-        setNoIntersectionInfo({
-          roadName: pendingRoadSelections[0],
-          subdivisionName: pendingPoliticalSubdivisions[0].name
-        });
-        setShowNoIntersectionAlert(true);
-      }
-      
-      // Reset pending selections after processing
-      setPendingRoadSelections([]);
-      setPendingPoliticalSubdivisions([]);
-      setShowIntersectionDialog(false);
-    } catch (error) {
-      console.error('Error processing intersection:', error);
-      alert("There was an error finding the intersection. Please try again.");
-      setShowIntersectionDialog(false);
-    }
-  };
+      });
+      window.dispatchEvent(layerEvent);
+      console.log('Dispatched remove-map-layer event for:', `road-layer-${roadName}`);
+    } 
 
-  // Function to keep selections separate
-  const handleKeepSeparate = () => {
-    // Close the dialog
-    setShowIntersectionDialog(false);
-    
-    // Add road selections
-    if (pendingRoadSelections.length > 0) {
-      const newRoadSelections: LocationSelection[] = pendingRoadSelections.map((road) => ({
-        type: "road",
-        selection: road,
-        operator: "AND"
-      }));
+    else if (selectionToRemove.type === 'polygon') {
+      // Handle polygon removal
+      const polygonData = selectionToRemove.selection as PolygonCoordinates;
+      console.log('Removing polygon selection:', polygonData.featureId);
       
-      onSelectionsChange?.([...selections, ...newRoadSelections]);
+      // Remove the polygon from drawnPolygons state
+      setDrawnPolygons(prev => prev.filter(p => p.featureId !== polygonData.featureId));
       
-      // For each road, dispatch event to map
-      for (const road of pendingRoadSelections) {
-        try {
-          // Get the road coordinates from GeoJSON
-          getRoadCoordinates(road).then(roadCoords => {
-            if (roadCoords) {
-              // Dispatch event for map to add road line
-              const event = new CustomEvent('road-selection-added', {
-                detail: {
-                  name: road,
-                  coordinates: roadCoords,
-                  type: 'road'
-                }
-              });
-              window.dispatchEvent(event);
-            }
-          });
-        } catch (error) {
-          console.error(`Error getting coordinates for road ${road}:`, error);
+      // Clear the selected polygon ID if it matches the removed polygon
+      if (selectedPolygonId === polygonData.featureId) {
+        setSelectedPolygonId(null);
+      }
+      
+      // Check if this was the last polygon selection
+      const remainingPolygonSelections = updatedSelections.filter(s => s.type === 'polygon');
+      if (remainingPolygonSelections.length === 0) {
+        // If no more polygon selections, reset draw mode to ensure other tabs are enabled
+        setDrawMode(null);
+      }
+      
+      // Dispatch polygon-specific removal event
+      const polygonEvent = new CustomEvent('polygon-removed', {
+        detail: {
+          polygonId: polygonData.featureId,
+          fullSelection: selectionToRemove
         }
+      });
+      window.dispatchEvent(polygonEvent);
+      
+      // Also dispatch general selection-removed event
+      const selectionEvent = new CustomEvent('selection-removed', {
+        detail: {
+          type: 'polygon',
+          selection: polygonData,
+          name: polygonData.name || 'Custom Area'
+        }
+      });
+      window.dispatchEvent(selectionEvent);
+      
+      // Show a toast notification
+      toast({
+        title: "Polygon Removed",
+        description: "The drawn polygon has been removed from your selections and the map.",
+        duration: 3000
+      });
+    } 
+    else if (selectionToRemove.type === 'city') {
+      // Handle city boundary removal
+      const cityName = selectionToRemove.selection as string;
+      console.log('Removing city selection:', cityName);
+      
+      // Update selectedCities state to show the checkbox as unchecked
+      setSelectedCities(prev => prev.filter(c => c !== cityName));
+      
+      // Dispatch city-specific removal event
+      const cityEvent = new CustomEvent('city-boundary-removed', {
+        detail: { name: cityName }
+      });
+      window.dispatchEvent(cityEvent);
+      console.log('Dispatched city-boundary-removed event for:', cityName);
+      
+      // Also dispatch general selection-removed event
+      const selectionEvent = new CustomEvent('selection-removed', {
+        detail: {
+          type: 'city',
+          selection: cityName,
+          name: cityName
+        }
+      });
+      window.dispatchEvent(selectionEvent);
+    }
+    else if (selectionToRemove.type === 'county') {
+      // Handle county boundary removal
+      const countyName = selectionToRemove.selection as string;
+      console.log('Removing county selection:', countyName);
+      
+      // Update selectedCounties state to show the checkbox as unchecked
+      setSelectedCounties(prev => prev.filter(c => c !== countyName));
+      
+      // Dispatch county-specific removal event
+      const countyEvent = new CustomEvent('county-boundary-removed', {
+        detail: { name: countyName }
+      });
+      window.dispatchEvent(countyEvent);
+      console.log('Dispatched county-boundary-removed event for:', countyName);
+      
+      // Also dispatch general selection-removed event
+      const selectionEvent = new CustomEvent('selection-removed', {
+        detail: {
+          type: 'county',
+          selection: countyName,
+          name: countyName
+        }
+      });
+      window.dispatchEvent(selectionEvent);
+    }
+    else if (selectionToRemove.type === 'district') {
+      // Handle district boundary removal
+      const districtName = selectionToRemove.selection as string;
+      console.log('Removing district selection:', districtName);
+      
+      // Update selectedAgencyDistricts state to show the checkbox as unchecked
+      setSelectedAgencyDistricts(prev => prev.filter(d => d !== districtName));
+      
+      // Dispatch district-specific removal event
+      const districtEvent = new CustomEvent('district-boundary-removed', {
+        detail: { name: districtName }
+      });
+      window.dispatchEvent(districtEvent);
+      console.log('Dispatched district-boundary-removed event for:', districtName);
+      
+      // Also dispatch general selection-removed event
+      const selectionEvent = new CustomEvent('selection-removed', {
+        detail: {
+          type: 'district',
+          selection: districtName,
+          name: districtName
+        }
+      });
+      window.dispatchEvent(selectionEvent);
+    }
+    else if (selectionToRemove.type === 'subdistrict') {
+      // Handle subdistrict boundary removal
+      const subdistrictName = selectionToRemove.selection as string;
+      console.log('Removing subdistrict selection:', subdistrictName);
+      
+      // Update selectedAgencySubdistricts state if it exists
+      if (typeof setSelectedAgencySubdistricts === 'function') {
+        setSelectedAgencySubdistricts(prev => prev.filter(s => s !== subdistrictName));
+      }
+      
+      // Dispatch subdistrict-specific removal event
+      const subdistrictEvent = new CustomEvent('subdistrict-boundary-removed', {
+        detail: { name: subdistrictName }
+      });
+      window.dispatchEvent(subdistrictEvent);
+      console.log('Dispatched subdistrict-boundary-removed event for:', subdistrictName);
+      
+      // Also dispatch general selection-removed event
+      const selectionEvent = new CustomEvent('selection-removed', {
+        detail: {
+          type: 'subdistrict',
+          selection: subdistrictName,
+          name: subdistrictName
+        }
+      });
+      window.dispatchEvent(selectionEvent);
+    }
+    else if (selectionToRemove.type === 'intersection') {
+      // Handle intersection removal
+      const intersectionName = selectionToRemove.selection as string;
+      console.log('Removing intersection selection:', intersectionName);
+      
+      // Extract road and entity names from the intersection name
+      // Format is typically "Road I-65 ∩ Entity Name"
+      const parts = intersectionName.split(' ∩ ');
+      if (parts.length === 2) {
+        const roadName = parts[0].trim();
+        const entityName = parts[1].trim();
+        
+        // Create a unique ID for the intersection based on the names
+        const intersectionId = `intersection-${roadName.replace(/\s+/g, '-')}-${entityName.replace(/\s+/g, '-')}`;
+        
+        // Dispatch intersection-specific removal event
+        const intersectionEvent = new CustomEvent('intersection-removed', {
+          detail: {
+            id: intersectionId,
+            roadName,
+            entityName,
+            name: intersectionName,
+            fullSelection: selectionToRemove
+          }
+        });
+        window.dispatchEvent(intersectionEvent);
+        console.log('Dispatched intersection-removed event for:', intersectionId);
+        
+        // Also dispatch general selection-removed event
+        const selectionEvent = new CustomEvent('selection-removed', {
+          detail: {
+            type: 'intersection',
+            selection: intersectionName,
+            name: intersectionName
+          }
+        });
+        window.dispatchEvent(selectionEvent);
+      } else {
+        console.error('Invalid intersection name format:', intersectionName);
       }
     }
-    
-    // Add political subdivision selections
-    if (pendingPoliticalSubdivisions.length > 0) {
-      const newSubdivisionSelections: LocationSelection[] = pendingPoliticalSubdivisions.map((subdivision) => ({
-        type: subdivision.type as LocationSelectionType,
-        selection: subdivision.name,
-        operator: "AND"
-      }));
+    else if (selectionToRemove.type === 'poi') {
+      // Handle POI removal
+      const poiName = selectionToRemove.selection as string;
+      console.log('Removing POI selection:', poiName);
       
-      onSelectionsChange?.([...selections, ...newSubdivisionSelections]);
-      
-      // For each subdivision, dispatch event to map
-      for (const subdivision of pendingPoliticalSubdivisions) {
-        try {
-          // Dispatch event for map to add boundary
-          const event = new CustomEvent(`${subdivision.type}-boundary-added`, {
-            detail: {
-              name: subdivision.name,
-              feature: subdivision.feature,
-              type: subdivision.type
-            }
-          });
-          window.dispatchEvent(event);
-        } catch (error) {
-          console.error(`Error adding boundary for ${subdivision.type} ${subdivision.name}:`, error);
+      // Update the selectedPointsOfInterest state to uncheck the checkbox
+      if (selectedPointsOfInterest.includes(poiName)) {
+        console.log('Updating checkbox state for POI:', poiName);
+        const updatedPOIs = selectedPointsOfInterest.filter(p => p !== poiName);
+        onSelectedPointsOfInterestChange?.(updatedPOIs);
+        
+        // If setSelectedPointsOfInterest is available, use it directly
+        if (setSelectedPointsOfInterest) {
+          setSelectedPointsOfInterest(updatedPOIs);
         }
       }
+      
+      // Dispatch POI-specific removal event
+      const poiEvent = new CustomEvent('poi-selection-removed', {
+        detail: {
+          type: 'poi',
+          selection: poiName,
+          name: poiName,
+          poiRadius: selectionToRemove.poiRadius || 0
+        }
+      });
+      window.dispatchEvent(poiEvent);
+      console.log('Dispatched poi-selection-removed event for:', poiName);
+      
+      // Also dispatch the poi-removed event for backward compatibility
+      const poiRemovedEvent = new CustomEvent('poi-removed', {
+        detail: {
+          name: poiName
+        }
+      });
+      window.dispatchEvent(poiRemovedEvent);
+      
+      // Also dispatch general selection-removed event
+      const selectionEvent = new CustomEvent('selection-removed', {
+        detail: {
+          type: 'poi',
+          selection: poiName,
+          name: poiName
+        }
+      });
+      window.dispatchEvent(selectionEvent);
     }
-    
-    // Clear pending selections
-    setPendingRoadSelections([]);
-    setPendingPoliticalSubdivisions([]);
+    else {
+      // Generic handling for other selection types
+      const selectionDisplayName = Array.isArray(selectionToRemove.selection) 
+        ? selectionToRemove.selection.join('-') 
+        : (typeof selectionToRemove.selection === 'string' ? selectionToRemove.selection : 'unknown');
+      
+      console.log(`Removing ${selectionToRemove.type} selection:`, selectionDisplayName);
+      
+      // Dispatch general selection-removed event
+      const event = new CustomEvent('selection-removed', {
+        detail: {
+          type: selectionToRemove.type,
+          selection: selectionToRemove.selection,
+          name: selectionDisplayName
+        }
+      });
+      window.dispatchEvent(event);
+      console.log(`Dispatched selection-removed event for ${selectionToRemove.type}:`, selectionDisplayName);
+    }
   }
   
-  // Function to toggle the operator between selections
-  const toggleOperator = (index: number) => {
-    if (index > 0) {
-      const updatedSelections = [...selections];
-      const prevSelection = updatedSelections[index - 1];
-      
-      // Toggle between AND and OR
-      prevSelection.operator = prevSelection.operator === "AND" ? "OR" : "AND";
-      
-      onSelectionsChange?.(updatedSelections);
-    }
-  }
-
-  // Function to get a summary of the current selections
-  const getSummary = useCallback(() => {
-    if (selections.length === 0) {
-      return "No location selected";
-    }
-    return selections.map((selection) => {
-      switch (selection.type) {
-        case "road":
-          if (Array.isArray(selection.selection)) {
-            return `Roads: ${selection.selection.join(", ")}`;
-          } else {
-            const road = selection.selection;
-            const range = selection.mileMarkerRange;
-            return range ? `${road} (MM ${range.min}-${range.max})` : road;
-          }
-        case "city":
-          if (Array.isArray(selection.selection)) {
-            return `Cities: ${selection.selection.join(", ")}`;
-          } else {
-            // Check if this is a Point of Interest (has poiRadius property)
-            if (selection.poiRadius !== undefined) {
-              return selection.poiRadius > 0 
-                ? `PoI: ${selection.selection} (${selection.poiRadius} mi radius)` 
-                : `PoI: ${selection.selection}`;
-            } else {
-              return `City: ${selection.selection}`;
-            }
-          }
-        case "district":
-          if (Array.isArray(selection.selection)) {
-            return `Districts: ${selection.selection.join(", ")}`;  
-          } else {
-            return `District: ${selection.selection}`;
-          }
-        case "subdistrict":
-          if (Array.isArray(selection.selection)) {
-            return `Subdistricts: ${selection.selection.join(", ")}`;  
-          } else {
-            return `Subdistrict: ${selection.selection}`;
-          }
-        case "county":
-          if (Array.isArray(selection.selection)) {
-            return `Counties: ${selection.selection.join(", ")}`;  
-          } else {
-            return `County: ${selection.selection}`;
-          }
-        default:
-          return "";
-      }
-    }).join(", ");
-  }, [selections]);
-
-  // Function to add road selections
-  const addRoadSelections = async () => {
-    if (selectedRoads.length > 0) {
-      // Add each road as its own selection
-      const newSelections: LocationSelection[] = selectedRoads.map((road) => ({
-        type: "road",
-        selection: road,
-        operator: "AND"
-      }));
-      
-      // Update selections state
-      onSelectionsChange?.([...selections, ...newSelections]);
-      
-      // For each road, get coordinates and dispatch event to map
-      for (const road of selectedRoads) {
-        try {
-          const coordinates = await getRoadCoordinates(road);
-          if (coordinates) {
-            // Dispatch event for map to add road line
-            const event = new CustomEvent('road-selection-added', {
-              detail: {
-                name: road,
-                coordinates,
-                type: 'road'
-              }
-            });
-            window.dispatchEvent(event);
-          }
-        } catch (error) {
-          console.error(`Error getting coordinates for road ${road}:`, error);
-        }
-      }
-      
-      // Clear the selected roads after adding
-      setSelectedRoads?.([]);
-      onSelectedRoadsChange?.([]);
-    }
-  }
-
-  // Function to add city selections
-  const addCitySelections = () => {
-    if (selectedLocations.length > 0) {
-      const newSelection: LocationSelection = {
-        type: "city",
-        selection: [...selectedLocations],
-        operator: "AND" // Default operator
-      };
-      
-      onSelectionsChange?.([...selections, newSelection]);
-      
-      // Clear the selected cities after adding
-      setSelectedLocations?.([]);
-      onSelectedLocationsChange?.([]);
-    }
-  }
-
-  // Function to clear all selections
-  const clearAllSelections = () => {
-    // Clear all selections
-    if (selections.length > 0) {
-      // For each selection, dispatch an event to remove it from the map
-      selections.forEach(selection => {
-        const event = new CustomEvent('selection-removed', {
-          detail: selection
-        });
-        window.dispatchEvent(event);
-      });
-      
-      // Update the selections state
-      onSelectionsChange?.([]);
-      
-      // Hide the confirmation dialog
-      setShowClearConfirmation(false);
-    }
-  };
-  
-  // Function to add district selections
-  const addDistrictSelections = () => {
-    if (selectedDistricts.length > 0) {
-      const newSelection: LocationSelection = {
-        type: "district",
-        selection: [...selectedDistricts],
-        operator: "AND" // Default operator
-      };
-      
-      onSelectionsChange?.([...selections, newSelection]);
-      
-      // Clear the selected districts after adding
-      setSelectedDistricts?.([]);
-      onSelectedDistrictsChange?.([]);
-      
-      // Hide the confirmation dialog
-      setShowAddConfirmation(false);
-    }
-  }
-
-  // Function to add city selections
-  const addCityTabSelections = () => {
-    if (selectedCities.length > 0) {
-      const newSelection: LocationSelection = {
-        type: "city",
-        selection: [...selectedCities],
-        operator: "AND" // Default operator
-      };
-      
-      onSelectionsChange?.([...selections, newSelection]);
-      
-      // Clear the selected cities after adding
-      setSelectedCities?.([]);
-    }
-  }
-
-  // Function to add county selections
-  const addCountyTabSelections = () => {
-    if (selectedCounties.length > 0) {
-      const newSelection: LocationSelection = {
-        type: "district",
-        selection: [...selectedCounties],
-        operator: "AND" // Default operator
-      };
-      
-      onSelectionsChange?.([...selections, newSelection]);
-      
-      // Clear the selected counties after adding
-      setSelectedCounties?.([]);
-    }
-  }
 
   return (
     <div className="w-full space-y-4">
@@ -921,6 +925,7 @@ export function LocationSelector({
           ) : (
             <div className="flex flex-wrap gap-2">
               {selections.map((selection, index) => {
+                console.log(`Rendering selection ${index}:`, selection);
                 let content = "";
                 
                 switch (selection.type) {
@@ -928,17 +933,12 @@ export function LocationSelector({
                     // Handle polygon selection
                     const polygonData = selection.selection as PolygonCoordinates;
                     
-                    // Check if this is an intersection with a name
-                    if (polygonData.type === 'Intersection' && polygonData.name) {
-                      // Use the intersection name (road ∩ subdivision)
-                      content = polygonData.name;
-                    } else {
                       // Fallback to the old behavior for other polygon types
                       const boundingBox = polygonData.boundingBox;
                       content = boundingBox ? 
                         `Custom Area: SW(${boundingBox.southwest[0].toFixed(4)}, ${boundingBox.southwest[1].toFixed(4)}) - NE(${boundingBox.northeast[0].toFixed(4)}, ${boundingBox.northeast[1].toFixed(4)})` :
                         `Custom ${polygonData.type} Area`;
-                    }
+                    
                     break;
                   case "road":
                     if (Array.isArray(selection.selection)) {
@@ -950,11 +950,18 @@ export function LocationSelector({
                       content = range ? `Road: ${road} (MM ${range.min}-${range.max})` : road;
                     }
                     break;
+                  case "poi":
+                    content = `PoI: ${selection.selection as string}`;
+                    // Add radius information if available
+                    if (selection.poiRadius !== undefined && selection.poiRadius > 0) {
+                      content += ` (${selection.poiRadius} mi radius)`;
+                    }
+                    break;
                   case "city":
                     if (Array.isArray(selection.selection)) {
                       content = `Cities: ${selection.selection.join(" | ")}`;
                     } else {
-                      // Check if this is a Point of Interest (has poiRadius property)
+                      // Check for legacy POI (city with poiRadius)
                       if (selection.poiRadius !== undefined) {
                         content = `PoI: ${selection.selection as string}`;
                         // Add radius information if available
@@ -985,6 +992,26 @@ export function LocationSelector({
                       content = `Counties: ${selection.selection.join(" | ")}`;
                     } else {
                       content = `County: ${selection.selection as string}`;
+                    }
+                    break;
+                  case "intersection":
+                    // Handle intersection selection
+                    if (Array.isArray(selection.selection)) {
+                      content = `Intersection: ${selection.selection.join(" | ")}`;
+                    } else {
+                      // Display the intersection name directly without any prefix
+                      // This ensures the format "I-65 ∩ Fort Wayne" is displayed as is
+                      const intersectionStr = selection.selection as string;
+                      console.log('Rendering intersection string:', intersectionStr);
+                      content = intersectionStr;
+                      
+                      // If the content is empty, create a fallback display
+                      if (!content || content.trim() === '') {
+                        // Try to extract information from the selection object
+                        const selectionObj = JSON.stringify(selection);
+                        console.log('Selection object for debugging:', selectionObj);
+                        content = 'Road ∩ District Intersection';
+                      }
                     }
                     break;
                 }
@@ -1028,65 +1055,56 @@ export function LocationSelector({
                 <TabsTrigger 
                   value="points-of-interest" 
                   className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300 flex items-center"
-                  disabled={selectedRoads.length > 0 || selectedCities.length > 0 || selectedCounties.length > 0 || selectedAgencyDistricts.length > 0 || selectedAgencySubdistricts.length > 0 || drawnPolygons.length > 0}
+                  disabled={isTabDisabled('points-of-interest')}
                 >
                   <span>Points of Interest</span>
-                  {(selectedPointsOfInterest.length > 0 || selections.some(s => s.type === "city" && typeof s.selection === "string" && s.poiRadius !== undefined)) && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full !flex !items-center !justify-center">
-                      {selectedPointsOfInterest.length + selections.filter(s => s.type === "city" && typeof s.selection === "string" && s.poiRadius !== undefined).length}
-                    </span>
+                  {(selectedPointsOfInterest.length > 0 || selections.some(s => s.type === "poi" || (s.type === "city" && typeof s.selection === "string" && s.poiRadius !== undefined))) && (
+                    <span className="ml-1 w-2 h-2 bg-blue-600 rounded-full"></span>
                   )}
                 </TabsTrigger>
                 <TabsTrigger 
                   value="road" 
                   className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300 flex items-center"
-                  disabled={selectedPointsOfInterest.length > 0 || drawnPolygons.length > 0}
+                  disabled={isTabDisabled('road')}
                 >
                   <span>Road</span>
-                  {(selectedRoads.length > 0 || selections.some(s => s.type === "road")) && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full !flex !items-center !justify-center">
-                      {selectedRoads.length + selections.filter(s => s.type === "road").length}
-                    </span>
+                  {(selectedRoads.length > 0 || pendingRoadSelections.length > 0 || selections.some(s => s.type === "road")) && (
+                    <span className="ml-1 w-2 h-2 bg-blue-600 rounded-full"></span>
                   )}
                 </TabsTrigger>
                 <TabsTrigger 
                   value="city" 
                   className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300 flex items-center"
-                  disabled={selectedPointsOfInterest.length > 0 || selectedAgencyDistricts.length > 0 || selectedAgencySubdistricts.length > 0 || drawnPolygons.length > 0}
+                  disabled={isTabDisabled('city')}
                 >
                   <span>Political Subdivisions</span>
                   {(selectedCities.length > 0 || selectedCounties.length > 0 || 
-                    selections.some(s => (s.type === "city" || s.type === "county") && s.poiRadius === undefined)) && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full !flex !items-center !justify-center">
-                      {selectedCities.length + selectedCounties.length + 
-                       selections.filter(s => (s.type === "city" || s.type === "county") && s.poiRadius === undefined).length}
-                    </span>
+                    (pendingPoliticalSubdivisions.filter(s => s.type === "city" || s.type === "county").length > 0) || 
+                    selections.some(s => (s.type === "city" || s.type === "county") && 
+                                         s.poiRadius === undefined)) && (
+                    <span className="ml-1 w-2 h-2 bg-blue-600 rounded-full"></span>
                   )}
                 </TabsTrigger>
                 <TabsTrigger 
                   value="agency-districts" 
                   className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300 flex items-center"
-                  disabled={selectedPointsOfInterest.length > 0 || selectedCities.length > 0 || selectedCounties.length > 0 || drawnPolygons.length > 0}
+                  disabled={isTabDisabled('agency-districts')}
                 >
                   <span>Agency Defined Districts</span>
                   {(selectedAgencyDistricts.length > 0 || selectedAgencySubdistricts.length > 0 || 
+                    pendingPoliticalSubdivisions.some(s => s.type === "district" || s.type === "subdistrict") ||
                     selections.some(s => s.type === "district" || s.type === "subdistrict")) && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full !flex !items-center !justify-center">
-                      {selectedAgencyDistricts.length + selectedAgencySubdistricts.length + 
-                       selections.filter(s => s.type === "district" || s.type === "subdistrict").length}
-                    </span>
+                    <span className="ml-1 w-2 h-2 bg-blue-600 rounded-full"></span>
                   )}
                 </TabsTrigger>
                 <TabsTrigger 
                   value="draw" 
                   className="bg-white hover:bg-gray-50 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 data-[state=active]:border-blue-500 shadow-sm border-2 border-gray-300 flex items-center"
-                  disabled={selectedPointsOfInterest.length > 0 || selectedRoads.length > 0 || selectedCities.length > 0 || selectedCounties.length > 0 || selectedAgencyDistricts.length > 0 || selectedAgencySubdistricts.length > 0}
+                  disabled={isTabDisabled('draw')}
                 >
                   <span>Draw on Map</span>
-                  {(drawnPolygons.length > 0 || selections.some(s => s.type === "polygon")) && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full !flex !items-center !justify-center">
-                      {drawnPolygons.length + selections.filter(s => s.type === "polygon").length}
-                    </span>
+                  {(drawnPolygons.length > 0 || selections.some(s => s.type === "polygon" && typeof s.selection === 'object' && 'type' in s.selection)) && (
+                    <span className="ml-1 w-2 h-2 bg-blue-600 rounded-full"></span>
                   )}
                 </TabsTrigger>
               </TabsList>
@@ -1101,7 +1119,7 @@ export function LocationSelector({
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Input
-              placeholder="Search 2,480 roads..."
+              placeholder="Search 232 roads..."
               value={searchRoad}
               onChange={(e) => setSearchRoad(e.target.value)}
               className="flex-1"
@@ -1135,42 +1153,151 @@ export function LocationSelector({
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`road-${road}`}
-                          checked={selectedRoads.includes(road)}
+                          checked={selectedRoads.includes(road) || selections.some(s => s.type === "road" && s.selection === road)}
                           onCheckedChange={async (checked) => {
-                            const updatedRoads = checked 
-                              ? [...selectedRoads, road]
-                              : selectedRoads.filter((r) => r !== road);
-                            
-                            // Always update both state and call callback
-                            setSelectedRoads?.(updatedRoads);
-                            onSelectedRoadsChange?.(updatedRoads);
-                            
-                            // If adding a road, initialize its mile marker range if not already set
-                            if (checked && !roadMileMarkerRanges[road] && setRoadMileMarkerRanges) {
-                              const updatedRanges = { ...roadMileMarkerRanges, [road]: { min: 0, max: 500 } };
-                              setRoadMileMarkerRanges(updatedRanges);
-                              onRoadMileMarkerRangesChange?.(updatedRanges);
-                            }
-                            
-                            // Dispatch event to show/hide road preview on map
                             if (checked) {
                               try {
-                                // Get the road coordinates
+                                // Get the road coordinates using the service function
                                 const coordinates = await getRoadCoordinates(road);
-                                if (coordinates && coordinates.length > 0) {
-                                  const event = new CustomEvent('road-preview-show', {
-                                    detail: { road: { name: road, coordinates } }
+                                if (coordinates) {
+                                  // Initialize mile marker range
+                                  const updatedRanges = { 
+                                    ...roadMileMarkerRanges, 
+                                    [road]: { min: 0, max: 500 } 
+                                  };
+                                  setRoadMileMarkerRanges?.(updatedRanges);
+                                  onRoadMileMarkerRangesChange?.(updatedRanges);
+                                  
+                                  // Add the road directly to selections
+                                  const newSelection: LocationSelection = {
+                                    type: "road",
+                                    selection: road,
+                                    operator: "AND",
+                                    mileMarkerRange: { min: 0, max: 500 }
+                                  };
+                                  
+                                  // Check if there are any city, county, or district selections
+                                  const hasCitySelections = selections.some(s => s.type === "city");
+                                  const hasCountySelections = selections.some(s => s.type === "county");
+                                  const hasDistrictSelections = selections.some(s => s.type === "district" || s.type === "subdistrict");
+                                  
+                                  if (hasCitySelections) {
+                                    // Find the first city selection
+                                    const citySelection = selections.find(s => s.type === "city");
+                                    const cityName = citySelection ? 
+                                      (Array.isArray(citySelection.selection) ? citySelection.selection[0] : citySelection.selection as string) : 
+                                      'city';
+                                    
+                                    // Show intersection popup for road-city
+                                    setIntersectionType('road-city');
+                                    setIntersectionItems({
+                                      road: road,
+                                      entity: cityName
+                                    });
+                                    setShowIntersectionPopup(true);
+                                  } else if (hasCountySelections) {
+                                    // Find the first county selection
+                                    const countySelection = selections.find(s => s.type === "county");
+                                    const countyName = countySelection ? 
+                                      (Array.isArray(countySelection.selection) ? countySelection.selection[0] : countySelection.selection as string) : 
+                                      'county';
+                                    
+                                    // Show intersection popup for road-city (using the same type as city since it's a political subdivision)
+                                    setIntersectionType('road-city');
+                                    setIntersectionItems({
+                                      road: road,
+                                      entity: countyName
+                                    });
+                                    setShowIntersectionPopup(true);
+                                  } else if (hasDistrictSelections) {
+                                    // Find the first district selection
+                                    const districtSelection = selections.find(s => s.type === "district" || s.type === "subdistrict");
+                                    const districtName = districtSelection ? 
+                                      (Array.isArray(districtSelection.selection) ? districtSelection.selection[0] : districtSelection.selection as string) : 
+                                      'district';
+                                    
+                                    // Show intersection popup for road-district
+                                    setIntersectionType('road-district');
+                                    setIntersectionItems({
+                                      road: road,
+                                      entity: districtName
+                                    });
+                                    setShowIntersectionPopup(true);
+                                  }
+                                  
+                                  // Update selections state
+                                  onSelectionsChange?.([...selections, newSelection]);
+                                  
+                                  // Dispatch event for map to add road line
+                                  const event = new CustomEvent('road-selection-added', {
+                                    detail: {
+                                      name: road,
+                                      coordinates,
+                                      type: 'road'
+                                    }
                                   });
                                   window.dispatchEvent(event);
+                                  
+                                  // Show mile marker range selector
+                                  const rangeSelector = document.getElementById(`range-selector-${road}`);
+                                  if (rangeSelector) {
+                                    rangeSelector.style.display = 'block';
+                                  }
                                 }
                               } catch (error) {
                                 console.error(`Error getting coordinates for road ${road}:`, error);
                               }
                             } else {
-                              const event = new CustomEvent('road-preview-hide', {
-                                detail: { road: { name: road } }
+                              // Remove the road from selections
+                              const updatedSelections = selections.filter(s => 
+                                !(s.type === "road" && s.selection === road)
+                              );
+                              onSelectionsChange?.(updatedSelections);
+                              
+                              // Dispatch multiple events to ensure road is properly removed
+                              
+                              // First, dispatch the road-specific event with complete information
+                              const roadEvent = new CustomEvent('road-selection-removed', {
+                                detail: {
+                                  type: 'road',
+                                  selection: road,
+                                  name: road,
+                                  fullSelection: {
+                                    type: 'road',
+                                    selection: road,
+                                    operator: 'AND'
+                                  }
+                                }
                               });
-                              window.dispatchEvent(event);
+                              window.dispatchEvent(roadEvent);
+                              console.log('Dispatched road-selection-removed event for:', road);
+                              
+                              // Then dispatch the general selection-removed event
+                              const selectionEvent = new CustomEvent('selection-removed', {
+                                detail: {
+                                  type: 'road',
+                                  selection: road,
+                                  name: road
+                                }
+                              });
+                              window.dispatchEvent(selectionEvent);
+                              console.log('Dispatched selection-removed event for:', road);
+                              
+                              // Finally dispatch a direct layer removal event with the exact layer ID
+                              const layerEvent = new CustomEvent('remove-map-layer', {
+                                detail: {
+                                  layerId: `road-layer-${road}`,
+                                  sourceId: `road-source-${road}`
+                                }
+                              });
+                              window.dispatchEvent(layerEvent);
+                              console.log('Dispatched remove-map-layer event for:', `road-layer-${road}`);
+                              
+                              // Hide mile marker range selector
+                              const rangeSelector = document.getElementById(`range-selector-${road}`);
+                              if (rangeSelector) {
+                                rangeSelector.style.display = 'none';
+                              }
                             }
                           }}
                         />
@@ -1336,17 +1463,6 @@ export function LocationSelector({
               </div>
             )}
           </div>
-
-          {/* <div className="flex flex-wrap gap-1 mt-2">
-            {selectedRoads.map((road) => {
-              const range = roadMileMarkerRanges[road] || { min: 0, max: 500 };
-              return (
-                <Badge key={road} variant="secondary" className="text-xs">
-                  {road} (MM {range.min}-{range.max})
-                </Badge>
-              );
-            })}
-          </div> */}
         </div>
       </TabsContent>
 
@@ -1395,54 +1511,7 @@ export function LocationSelector({
               Clear All
             </Button>
           </div>
-          
-          {/* Confirmation Dialog for Add Selection */}
-          {showAddConfirmation && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-                <h3 className="text-lg font-semibold mb-4">Confirm Add Selection</h3>
-                <p className="mb-6">Are you sure you want to add {selectedDistricts.length} district(s) to your selection?</p>
-                <div className="flex justify-end gap-2">
-                  <Button 
-                    onClick={() => setShowAddConfirmation(false)} 
-                    variant="outline"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={addDistrictSelections} 
-                    className="bg-blue-500 hover:bg-blue-600 text-white"
-                  >
-                    Confirm
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Confirmation Dialog for Clear Selections */}
-          {showClearConfirmation && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-                <h3 className="text-lg font-semibold mb-4">Confirm Clear All Selections</h3>
-                <p className="mb-6">Are you sure you want to clear all {selections.length} selection(s) from the map?</p>
-                <div className="flex justify-end gap-2">
-                  <Button 
-                    onClick={() => setShowClearConfirmation(false)} 
-                    variant="outline"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={clearAllSelections} 
-                    className="bg-red-500 hover:bg-red-600 text-white"
-                  >
-                    Clear All
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+    
 
           <div className="max-h-60 overflow-y-auto border rounded-md p-2">
             {loading ? (
@@ -1472,14 +1541,6 @@ export function LocationSelector({
               </div>
             )}
           </div>
-
-          {/* <div className="flex flex-wrap gap-1 mt-2">
-            {selectedDistricts.map((district) => (
-              <Badge key={district} variant="secondary" className="text-xs">
-                {district}
-              </Badge>
-            ))}
-          </div> */}
         </div>
       </TabsContent>
 
@@ -1516,7 +1577,7 @@ export function LocationSelector({
                         <Checkbox
                           id={`poi-${poi}`}
                           checked={selectedPointsOfInterest.includes(poi)}
-                          onCheckedChange={(checked) => {
+                          onCheckedChange={async (checked) => {
                             const updatedPOIs = checked
                               ? [...selectedPointsOfInterest, poi]
                               : selectedPointsOfInterest.filter((p) => p !== poi);
@@ -1532,33 +1593,54 @@ export function LocationSelector({
                                 [poi]: 0
                               }));
                               
-                              // Dispatch event to show POI preview on map
                               try {
                                 // Get the POI coordinates using the service function
-                                getPOICoordinates(poi).then(coordinates => {
-                                  if (coordinates) {
-                                    const event = new CustomEvent('poi-preview-show', {
-                                      detail: { 
-                                        name: poi,
-                                        coordinates: coordinates,
-                                        radius: 0 // Initial radius
-                                      }
-                                    });
-                                    window.dispatchEvent(event);
-                                  }
-                                });
+                                const coordinates = await getPOICoordinates(poi);
+                                if (coordinates) {
+                                  // Add the POI directly to selections
+                                  const newSelection: LocationSelection = {
+                                    type: "poi",
+                                    selection: poi,
+                                    operator: "AND",
+                                    poiRadius: 0 // Initial radius
+                                  };
+                                  
+                                  // Update selections state
+                                  onSelectionsChange?.([...selections, newSelection]);
+                                  
+                                  // Dispatch event for map to add marker with radius
+                                  const event = new CustomEvent('poi-selection-added', {
+                                    detail: {
+                                      name: poi,
+                                      coordinates,
+                                      type: 'poi',
+                                      radius: 0 // Initial radius
+                                    }
+                                  });
+                                  window.dispatchEvent(event);
+                                }
                               } catch (error) {
-                                console.error(`Error showing preview for POI ${poi}:`, error);
+                                console.error(`Error getting coordinates for POI ${poi}:`, error);
                               }
                             } else {
+                              // Remove the POI from selections
+                              const updatedSelections = selections.filter(s => 
+                                !(s.type === "poi" && s.selection === poi)
+                              );
+                              onSelectionsChange?.(updatedSelections);
+                              
                               // Remove radius value when deselecting a POI
                               const newRadiusValues = {...poiRadiusValues};
                               delete newRadiusValues[poi];
                               setPoiRadiusValues(newRadiusValues);
                               
-                              // Dispatch event to hide POI preview on map
-                              const event = new CustomEvent('poi-preview-hide', {
-                                detail: { name: poi }
+                              // Dispatch event to remove POI from map
+                              const event = new CustomEvent('poi-selection-removed', {
+                                detail: { 
+                                  type: 'poi',
+                                  selection: poi,
+                                  poiRadius: 0 // Include this for backward compatibility
+                                }
                               });
                               window.dispatchEvent(event);
                             }
@@ -1589,6 +1671,21 @@ export function LocationSelector({
                                     ...prev,
                                     [poi]: value
                                   }));
+                                  
+                                  // Update the selection in the selections array with the new radius
+                                  const updatedSelections = selections.map(s => {
+                                    if (s.type === "poi" && s.selection === poi) {
+                                      // Update this POI's radius
+                                      return {
+                                        ...s,
+                                        poiRadius: value
+                                      };
+                                    }
+                                    return s;
+                                  });
+                                  
+                                  // Update the selections state
+                                  onSelectionsChange?.(updatedSelections);
                                   
                                   // Update the preview with the new radius
                                   try {
@@ -1678,19 +1775,51 @@ export function LocationSelector({
                               id={`city-${city}`}
                               checked={selectedCities.includes(city)}
                               onCheckedChange={async (checked) => {
-                                const updatedCities = checked
-                                  ? [...selectedCities, city]
-                                  : selectedCities.filter((c) => c !== city);
-                                setSelectedCities(updatedCities);
-                                
-                                // Dispatch event to show/hide city preview on map
                                 if (checked) {
                                   try {
                                     // Get the city boundary data
                                     const cityFeature = await getCityBoundary(city);
                                     if (cityFeature) {
-                                      const event = new CustomEvent('city-preview-show', {
-                                        detail: { name: city, feature: cityFeature }
+                                      // Add the city directly to selections
+                                      const newSelection: LocationSelection = {
+                                        type: "city",
+                                        selection: city,
+                                        operator: "AND"
+                                      };
+                                      
+                                      // Check if there are any road selections
+                                      const hasRoadSelections = selections.some(s => s.type === "road");
+                                      
+                                      if (hasRoadSelections) {
+                                        // Find the first road selection
+                                        const roadSelection = selections.find(s => s.type === "road");
+                                        const roadName = roadSelection ? 
+                                          (Array.isArray(roadSelection.selection) ? roadSelection.selection[0] : roadSelection.selection as string) : 
+                                          'road';
+                                        
+                                        // Show intersection popup for road-city
+                                        setIntersectionType('road-city');
+                                        setIntersectionItems({
+                                          road: roadName,
+                                          entity: city
+                                        });
+                                        setShowIntersectionPopup(true);
+                                      }
+                                      
+                                      // Update selections state
+                                      onSelectionsChange?.([...selections, newSelection]);
+                                      
+                                      // Update selectedCities state to show the checkbox as checked
+                                      setSelectedCities(prev => [...prev, city]);
+                                      
+                                      
+                                      // Dispatch event for map to add city boundary
+                                      const event = new CustomEvent('city-boundary-added', {
+                                        detail: {
+                                          name: city,
+                                          feature: cityFeature,
+                                          type: 'city'
+                                        }
                                       });
                                       window.dispatchEvent(event);
                                     }
@@ -1698,7 +1827,17 @@ export function LocationSelector({
                                     console.error(`Error getting boundary for city ${city}:`, error);
                                   }
                                 } else {
-                                  const event = new CustomEvent('city-preview-hide', {
+                                  // Remove the city from selections
+                                  const updatedSelections = selections.filter(s => 
+                                    !(s.type === "city" && s.selection === city && s.poiRadius === undefined)
+                                  );
+                                  onSelectionsChange?.(updatedSelections);
+                                  
+                                  // Update selectedCities state to show the checkbox as unchecked
+                                  setSelectedCities(prev => prev.filter(c => c !== city));
+                                  
+                                  // Dispatch event to remove city from map
+                                  const event = new CustomEvent('city-boundary-removed', {
                                     detail: { name: city }
                                   });
                                   window.dispatchEvent(event);
@@ -1760,19 +1899,50 @@ export function LocationSelector({
                               id={`county-${county}`}
                               checked={selectedCounties.includes(county)}
                               onCheckedChange={async (checked) => {
-                                const updatedCounties = checked
-                                  ? [...selectedCounties, county]
-                                  : selectedCounties.filter((c) => c !== county);
-                                setSelectedCounties(updatedCounties);
-                                
-                                // Dispatch event to show/hide county preview on map
                                 if (checked) {
                                   try {
                                     // Get the county boundary data
                                     const countyFeature = await getCountyBoundary(county);
                                     if (countyFeature) {
-                                      const event = new CustomEvent('county-preview-show', {
-                                        detail: { name: county, feature: countyFeature }
+                                      // Add the county directly to selections
+                                      const newSelection: LocationSelection = {
+                                        type: "county",
+                                        selection: county,
+                                        operator: "AND"
+                                      };
+                                      
+                                      // Check if there are any road selections
+                                      const hasRoadSelections = selections.some(s => s.type === "road");
+                                      
+                                      if (hasRoadSelections) {
+                                        // Find the first road selection
+                                        const roadSelection = selections.find(s => s.type === "road");
+                                        const roadName = roadSelection ? 
+                                          (Array.isArray(roadSelection.selection) ? roadSelection.selection[0] : roadSelection.selection as string) : 
+                                          'road';
+                                        
+                                        // Show intersection popup for road-city (using the same type as city since it's a political subdivision)
+                                        setIntersectionType('road-city');
+                                        setIntersectionItems({
+                                          road: roadName,
+                                          entity: county
+                                        });
+                                        setShowIntersectionPopup(true);
+                                      }
+                                      
+                                      // Update selections state
+                                      onSelectionsChange?.([...selections, newSelection]);
+                                      
+                                      // Update selectedCounties state to show the checkbox as checked
+                                      setSelectedCounties(prev => [...prev, county]);
+                                    
+                                      // Dispatch event for map to add county boundary
+                                      const event = new CustomEvent('county-boundary-added', {
+                                        detail: {
+                                          name: county,
+                                          feature: countyFeature,
+                                          type: 'county'
+                                        }
                                       });
                                       window.dispatchEvent(event);
                                     }
@@ -1780,7 +1950,17 @@ export function LocationSelector({
                                     console.error(`Error getting boundary for county ${county}:`, error);
                                   }
                                 } else {
-                                  const event = new CustomEvent('county-preview-hide', {
+                                  // Remove the county from selections
+                                  const updatedSelections = selections.filter(s => 
+                                    !(s.type === "county" && s.selection === county)
+                                  );
+                                  onSelectionsChange?.(updatedSelections);
+                                  
+                                  // Update selectedCounties state to show the checkbox as unchecked
+                                  setSelectedCounties(prev => prev.filter(c => c !== county));
+                                  
+                                  // Dispatch event to remove county from map
+                                  const event = new CustomEvent('county-boundary-removed', {
                                     detail: { name: county }
                                   });
                                   window.dispatchEvent(event);
@@ -1862,19 +2042,40 @@ export function LocationSelector({
                               id={`district-${district}`}
                               checked={selectedAgencyDistricts.includes(district)}
                               onCheckedChange={async (checked) => {
-                                const updatedDistricts = checked
-                                  ? [...selectedAgencyDistricts, district]
-                                  : selectedAgencyDistricts.filter((d) => d !== district);
-                                setSelectedAgencyDistricts(updatedDistricts);
-                                
-                                // Dispatch event to show/hide district preview on map
                                 if (checked) {
                                   try {
                                     // Get the district boundary data
                                     const districtFeature = await getDistrictBoundary(district);
                                     if (districtFeature) {
-                                      const event = new CustomEvent('district-preview-show', {
-                                        detail: { name: district, feature: districtFeature }
+                                      // Add the district directly to selections
+                                      const newSelection: LocationSelection = {
+                                        type: "district",
+                                        selection: district,
+                                        operator: "AND"
+                                      };
+                                      
+                                      // Check if there are any road selections
+                                      const hasRoadSelections = selections.some(s => s.type === "road");
+                                      
+                                      if (hasRoadSelections) {
+                                        // Show intersection popup for road-district
+                                        setIntersectionType('road-district');
+                                        setShowIntersectionPopup(true);
+                                      }
+                                      
+                                      // Update selections state
+                                      onSelectionsChange?.([...selections, newSelection]);
+                                      
+                                      // Update selectedAgencyDistricts state to show the checkbox as checked
+                                      setSelectedAgencyDistricts(prev => [...prev, district]);
+                                      
+                                      // Dispatch event for map to add district boundary
+                                      const event = new CustomEvent('district-boundary-added', {
+                                        detail: {
+                                          name: district,
+                                          feature: districtFeature,
+                                          type: 'district'
+                                        }
                                       });
                                       window.dispatchEvent(event);
                                     }
@@ -1882,7 +2083,17 @@ export function LocationSelector({
                                     console.error(`Error getting boundary for district ${district}:`, error);
                                   }
                                 } else {
-                                  const event = new CustomEvent('district-preview-hide', {
+                                  // Remove the district from selections
+                                  const updatedSelections = selections.filter(s => 
+                                    !(s.type === "district" && s.selection === district)
+                                  );
+                                  onSelectionsChange?.(updatedSelections);
+                                  
+                                  // Update selectedAgencyDistricts state to show the checkbox as unchecked
+                                  setSelectedAgencyDistricts(prev => prev.filter(d => d !== district));
+                                  
+                                  // Dispatch event to remove district from map
+                                  const event = new CustomEvent('district-boundary-removed', {
                                     detail: { name: district }
                                   });
                                   window.dispatchEvent(event);
@@ -1944,19 +2155,40 @@ export function LocationSelector({
                               id={`subdistrict-${subdistrict}`}
                               checked={selectedAgencySubdistricts.includes(subdistrict)}
                               onCheckedChange={async (checked) => {
-                                const updatedSubdistricts = checked
-                                  ? [...selectedAgencySubdistricts, subdistrict]
-                                  : selectedAgencySubdistricts.filter((s) => s !== subdistrict);
-                                setSelectedAgencySubdistricts(updatedSubdistricts);
-                                
-                                // Dispatch event to show/hide subdistrict preview on map
                                 if (checked) {
                                   try {
                                     // Get the subdistrict boundary data
                                     const subdistrictFeature = await getSubdistrictBoundary(subdistrict);
                                     if (subdistrictFeature) {
-                                      const event = new CustomEvent('subdistrict-preview-show', {
-                                        detail: { name: subdistrict, feature: subdistrictFeature }
+                                      // Add the subdistrict directly to selections
+                                      const newSelection: LocationSelection = {
+                                        type: "subdistrict",
+                                        selection: subdistrict,
+                                        operator: "AND"
+                                      };
+                                      
+                                      // Check if there are any road selections
+                                      const hasRoadSelections = selections.some(s => s.type === "road");
+                                      
+                                      if (hasRoadSelections) {
+                                        // Show intersection popup for road-district
+                                        setIntersectionType('road-district');
+                                        setShowIntersectionPopup(true);
+                                      }
+                                      
+                                      // Update selections state
+                                      onSelectionsChange?.([...selections, newSelection]);
+                                      
+                                      // Update selectedAgencySubdistricts state to show the checkbox as checked
+                                      setSelectedAgencySubdistricts(prev => [...prev, subdistrict]);
+                                      
+                                      // Dispatch event for map to add subdistrict boundary
+                                      const event = new CustomEvent('subdistrict-boundary-added', {
+                                        detail: {
+                                          name: subdistrict,
+                                          feature: subdistrictFeature,
+                                          type: 'subdistrict'
+                                        }
                                       });
                                       window.dispatchEvent(event);
                                     }
@@ -1964,7 +2196,17 @@ export function LocationSelector({
                                     console.error(`Error getting boundary for subdistrict ${subdistrict}:`, error);
                                   }
                                 } else {
-                                  const event = new CustomEvent('subdistrict-preview-hide', {
+                                  // Remove the subdistrict from selections
+                                  const updatedSelections = selections.filter(s => 
+                                    !(s.type === "subdistrict" && s.selection === subdistrict)
+                                  );
+                                  onSelectionsChange?.(updatedSelections);
+                                  
+                                  // Update selectedAgencySubdistricts state to show the checkbox as unchecked
+                                  setSelectedAgencySubdistricts(prev => prev.filter(s => s !== subdistrict));
+                                  
+                                  // Dispatch event to remove subdistrict from map
+                                  const event = new CustomEvent('subdistrict-boundary-removed', {
                                     detail: { name: subdistrict }
                                   });
                                   window.dispatchEvent(event);
@@ -1998,8 +2240,45 @@ export function LocationSelector({
           {drawnPolygons.length > 0 ? (
             <div className="space-y-3">
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <div className="flex items-center">
+                <div className="flex items-center justify-between">
                   <p className="text-blue-800 text-sm font-medium">Drawn Areas ({drawnPolygons.length})</p>
+                  {selectedPolygonId && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="text-xs px-2 py-1 h-auto"
+                      onClick={() => {
+                        // Find the selected polygon
+                        const selectedPolygon = drawnPolygons.find(p => p.featureId === selectedPolygonId);
+                        if (selectedPolygon && onSelectionsChange) {
+                          // Create a new selection for the polygon
+                          const newSelection: LocationSelection = {
+                            type: 'polygon',
+                            selection: {
+                              type: selectedPolygon.type,
+                              coordinates: selectedPolygon.coordinates,
+                              featureId: selectedPolygon.featureId,
+                              boundingBox: selectedPolygon.boundingBox
+                            },
+                            operator: 'AND'
+                          };
+                          
+                          // Add the new selection to the existing selections
+                          onSelectionsChange([...selections, newSelection]);
+                          
+                          // Show a toast notification
+                          toast({
+                            title: "Polygon Added",
+                            description: "The drawn polygon has been added to your selections.",
+                            duration: 3000
+                          });
+                        }
+                      }}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Add to Selection
+                    </Button>
+                  )}
                 </div>
               </div>
               
@@ -2010,6 +2289,14 @@ export function LocationSelector({
                   const description = boundingBox ? 
                     `Area: SW(${boundingBox.southwest[0].toFixed(4)}, ${boundingBox.southwest[1].toFixed(4)}) - NE(${boundingBox.northeast[0].toFixed(4)}, ${boundingBox.northeast[1].toFixed(4)})` :
                     `Polygon with ${polygon.coordinates[0].length} points`;
+                  
+                  // Check if this polygon is already in selections
+                  const isAlreadySelected = selections.some(s => 
+                    s.type === 'polygon' && 
+                    typeof s.selection === 'object' && 
+                    'featureId' in s.selection && 
+                    s.selection.featureId === polygon.featureId
+                  );
                     
                   return (
                     <div 
@@ -2021,6 +2308,9 @@ export function LocationSelector({
                         <div>
                           <div className="text-sm font-medium">Drawn {polygon.type}</div>
                           <div className="text-xs text-gray-500">{description}</div>
+                          {isAlreadySelected && (
+                            <div className="text-xs text-green-600 mt-1">Added to selections</div>
+                          )}
                         </div>
                         {selectedPolygonId === polygon.featureId && (
                           <div className="bg-blue-500 rounded-full w-2 h-2"></div>
@@ -2057,396 +2347,7 @@ export function LocationSelector({
           </div>
         </div>
       </TabsContent>
-
-            </Tabs>
-            
-            {/* Global Add Selection and Clear All Buttons */}
-            <div className="mt-4 space-y-2">
-              <div className="flex gap-2">
-                <Button 
-                  onClick={async () => {
-                    // Check if we have a drawn polygon selected
-                    if (activeTab === 'draw' && selectedPolygonId) {
-                      // Add the selected polygon to selections
-                      const selectedPolygon = drawnPolygons.find(p => p.featureId === selectedPolygonId);
-                      if (selectedPolygon) {
-                        const newSelection: LocationSelection = {
-                          type: "polygon",
-                          selection: selectedPolygon,
-                          operator: "AND"
-                        };
-                        onSelectionsChange?.([...selections, newSelection]);
-                        // Clear selection after adding
-                        setSelectedPolygonId(null);
-                        return; // Exit early since we've handled the drawn polygon case
-                      }
-                    }
-                    
-                    // Check if we have both Road and Political Subdivision selections
-                    console.log('Active Tab:', activeTab);
-                    console.log('Selected Roads:', selectedRoads);
-                    console.log('Selected Cities:', selectedCities);
-                    console.log('Selected Counties:', selectedCounties);
-                    
-                    // The issue might be that we're checking if the active tab is 'road' or 'city'
-                    // But we should be checking if there are selections in both categories regardless of active tab
-                    const hasRoadSelections = selectedRoads.length > 0;
-                    const hasCitySelections = selectedCities.length > 0;
-                    const hasCountySelections = selectedCounties.length > 0;
-                    const hasDistrictSelections = selectedAgencyDistricts.length > 0;
-                    const hasSubdistrictSelections = selectedAgencySubdistricts.length > 0;
-                    const hasPoliticalSubdivisions = hasCitySelections || hasCountySelections;
-                    const hasAgencyDistricts = hasDistrictSelections || hasSubdistrictSelections;
-                  
-                    console.log('Has Road Selections:', hasRoadSelections);
-                    console.log('Has Political Subdivisions:', hasPoliticalSubdivisions);
-                    console.log('Has Agency Districts:', hasAgencyDistricts);
-                  
-                    // If we have both Road and either Political Subdivision or Agency District selections, show the intersection dialog
-                    if (hasRoadSelections && (hasPoliticalSubdivisions || hasAgencyDistricts)) {
-                    console.log('Road selections with political subdivisions or agency districts detected, showing dialog');
-                    // Store the pending selections
-                    setPendingRoadSelections([...selectedRoads]);
-                    
-                    // Store the pending political subdivisions
-                    const pendingSubdivisions = [];
-                    
-                    // Process city selections
-                    if (selectedCities.length > 0) {
-                      for (const city of selectedCities) {
-                        try {
-                          const cityFeature = await getCityBoundary(city);
-                          if (cityFeature) {
-                            pendingSubdivisions.push({
-                              name: city,
-                              type: 'city' as 'city' | 'county',
-                              feature: cityFeature
-                            });
-                          }
-                        } catch (error) {
-                          console.error(`Error getting boundary for city ${city}:`, error);
-                        }
-                      }
-                    }
-                    
-                    // Process county selections
-                    if (selectedCounties.length > 0) {
-                      for (const county of selectedCounties) {
-                        try {
-                          const countyFeature = await getCountyBoundary(county);
-                          if (countyFeature) {
-                            pendingSubdivisions.push({
-                              name: county,
-                              type: 'county' as 'city' | 'county',
-                              feature: countyFeature
-                            });
-                          }
-                        } catch (error) {
-                          console.error(`Error getting boundary for county ${county}:`, error);
-                        }
-                      }
-                    }
-                    
-                    // Process district selections
-                    if (selectedAgencyDistricts.length > 0) {
-                      for (const district of selectedAgencyDistricts) {
-                        try {
-                          const districtFeature = await getDistrictBoundary(district);
-                          if (districtFeature) {
-                            pendingSubdivisions.push({
-                              name: district,
-                              type: 'district' as 'city' | 'county' | 'district' | 'subdistrict',
-                              feature: districtFeature
-                            });
-                          }
-                        } catch (error) {
-                          console.error(`Error getting boundary for district ${district}:`, error);
-                        }
-                      }
-                    }
-                    
-                    // Process subdistrict selections
-                    if (selectedAgencySubdistricts.length > 0) {
-                      for (const subdistrict of selectedAgencySubdistricts) {
-                        try {
-                          const subdistrictFeature = await getSubdistrictBoundary(subdistrict);
-                          if (subdistrictFeature) {
-                            pendingSubdivisions.push({
-                              name: subdistrict,
-                              type: 'subdistrict' as 'city' | 'county' | 'district' | 'subdistrict',
-                              feature: subdistrictFeature
-                            });
-                          }
-                        } catch (error) {
-                          console.error(`Error getting boundary for subdistrict ${subdistrict}:`, error);
-                        }
-                      }
-                    }
-                    
-                    // Set the pending political subdivisions
-                    setPendingPoliticalSubdivisions(pendingSubdivisions);
-                    
-                    // Show the intersection dialog
-                    setShowIntersectionDialog(true);
-                    
-                    // Clear the selected items
-                    setSelectedRoads?.([]);
-                    onSelectedRoadsChange?.([]);
-                    setSelectedCities?.([]);
-                    setSelectedCounties?.([]);
-                    setSelectedAgencyDistricts([]);
-                    setSelectedAgencySubdistricts([]);
-                    console.log('Cleared all selections');
-                    
-                    return;
-                  }
-                  
-                  // Handle POI selections
-                  if (activeTab === "points-of-interest" && selectedPointsOfInterest.length > 0) {
-                    const newSelections: LocationSelection[] = selectedPointsOfInterest.map((poi) => ({
-                      type: "city",
-                      selection: poi,
-                      operator: "AND",
-                      poiRadius: poiRadiusValues[poi] || 0 // Include the radius information for this specific POI
-                    }));
-                    
-                    // Update selections state
-                    onSelectionsChange?.([...selections, ...newSelections]);
-                    
-                    // For each POI, get coordinates and dispatch event to map
-                    for (const poi of selectedPointsOfInterest) {
-                      try {
-                        const coordinates = await getPOICoordinates(poi);
-                        if (coordinates) {
-                          // Dispatch event for map to add marker with radius
-                          const event = new CustomEvent('poi-selection-added', {
-                            detail: {
-                              name: poi,
-                              coordinates,
-                              type: 'poi',
-                              radius: poiRadiusValues[poi] || 0 // Include the radius in miles for this specific POI
-                            }
-                          });
-                          window.dispatchEvent(event);
-                        }
-                      } catch (error) {
-                        console.error(`Error getting coordinates for POI ${poi}:`, error);
-                      }
-                    }
-                    
-                    // Clear the selected POIs after adding
-                    onSelectedPointsOfInterestChange?.([]);
-                  }
-                  
-                  // Handle Political Subdivisions selections (both City and County)
-                  else if (activeTab === "city") {
-                    const newSelections: LocationSelection[] = [];
-                    
-                    // Handle city selections
-                    if (selectedCities.length > 0) {
-                      const citySelections = selectedCities.map((city) => ({
-                        type: "city" as LocationSelectionType,
-                        selection: city,
-                        operator: "AND" as "AND" | "OR"
-                      }));
-                      newSelections.push(...citySelections);
-                      
-                      // For each city, get boundary and dispatch event to map
-                      for (const city of selectedCities) {
-                        try {
-                          // Get the city boundary from GeoJSON
-                          const cityFeature = await getCityBoundary(city);
-                          if (cityFeature) {
-                            // Dispatch event for map to add city boundary
-                            const event = new CustomEvent('city-boundary-added', {
-                              detail: {
-                                name: city,
-                                feature: cityFeature,
-                                type: 'city'
-                              }
-                            });
-                            window.dispatchEvent(event);
-                          }
-                        } catch (error) {
-                          console.error(`Error getting boundary for city ${city}:`, error);
-                        }
-                      }
-                      
-                      // Clear the selected cities after adding
-                      setSelectedCities([]);
-                    }
-                    
-                    // Handle county selections
-                    if (selectedCounties.length > 0) {
-                      const countySelections = selectedCounties.map((county) => ({
-                        type: "county" as LocationSelectionType, // Using county type for counties
-                        selection: county,
-                        operator: "AND" as "AND" | "OR"
-                      }));
-                      newSelections.push(...countySelections);
-                      
-                      // For each county, get boundary and dispatch event to map
-                      for (const county of selectedCounties) {
-                        try {
-                          // Get the county boundary from GeoJSON
-                          const countyFeature = await getCountyBoundary(county);
-                          if (countyFeature) {
-                            // Dispatch event for map to add county boundary
-                            const event = new CustomEvent('county-boundary-added', {
-                              detail: {
-                                name: county,
-                                feature: countyFeature,
-                                type: 'county'
-                              }
-                            });
-                            window.dispatchEvent(event);
-                          }
-                        } catch (error) {
-                          console.error(`Error getting boundary for county ${county}:`, error);
-                        }
-                      }
-                      
-                      // Clear the selected counties after adding
-                      setSelectedCounties([]);
-                    }
-                    
-                    // Update selections state
-                    onSelectionsChange?.([...selections, ...newSelections]);
-                    
-                    // Clear the selected items
-                    setSelectedCities?.([]);
-                    setSelectedCounties?.([]);
-                  }
-                  
-                  else if (activeTab === "agency-districts") {
-                    const newSelections: LocationSelection[] = [];
-                    
-                    // Handle district selections
-                    if (selectedAgencyDistricts.length > 0) {
-                      const districtSelections = selectedAgencyDistricts.map((district) => ({
-                        type: "district" as LocationSelectionType,
-                        selection: district,
-                        operator: "AND" as "AND" | "OR"
-                      }));
-                      newSelections.push(...districtSelections);
-                      
-                      // For each district, get boundary and dispatch event to map
-                      for (const district of selectedAgencyDistricts) {
-                        try {
-                          // Get the district boundary from GeoJSON
-                          const districtFeature = await getDistrictBoundary(district);
-                          if (districtFeature) {
-                            // Dispatch event for map to add district boundary
-                            const event = new CustomEvent('district-boundary-added', {
-                              detail: {
-                                name: district,
-                                feature: districtFeature,
-                                type: 'district',
-                              }
-                            });
-                            window.dispatchEvent(event);
-                          }
-                        } catch (error) {
-                          console.error(`Error getting boundary for district ${district}:`, error);
-                        }
-                      }
-                    }
-                    
-                    // Handle subdistrict selections
-                    if (selectedAgencySubdistricts.length > 0) {
-                      const subdistrictSelections = selectedAgencySubdistricts.map((subdistrict) => ({
-                        type: "subdistrict" as LocationSelectionType,
-                        selection: subdistrict,
-                        operator: "AND" as "AND" | "OR"
-                      }));
-                      newSelections.push(...subdistrictSelections);
-                      
-                      // For each subdistrict, get boundary and dispatch event to map
-                      for (const subdistrict of selectedAgencySubdistricts) {
-                        try {
-                          // Get the subdistrict boundary from GeoJSON
-                          const subdistrictFeature = await getSubdistrictBoundary(subdistrict);
-                          if (subdistrictFeature) {
-                            // Dispatch event for map to add subdistrict boundary
-                            const event = new CustomEvent('subdistrict-boundary-added', {
-                              detail: {
-                                name: subdistrict,
-                                feature: subdistrictFeature,
-                                type: 'subdistrict',
-                              }
-                            });
-                            window.dispatchEvent(event);
-                          }
-                        } catch (error) {
-                          console.error(`Error getting boundary for subdistrict ${subdistrict}:`, error);
-                        }
-                      }
-                    }
-                    
-                    // Update selections state
-                    onSelectionsChange?.([...selections, ...newSelections]);
-                    
-                    // Clear the selected items
-                    setSelectedAgencyDistricts([]);
-                    setSelectedAgencySubdistricts([]);
-                  }
-                                    // Handle Road selections
-                  else if (activeTab === "road" && selectedRoads.length > 0) {
-                    // Add each road as its own selection
-                    const newSelections: LocationSelection[] = selectedRoads.map((road) => ({
-                      type: "road",
-                      selection: road,
-                      operator: "AND"
-                    }));
-                    
-                    // Update selections state
-                    onSelectionsChange?.([...selections, ...newSelections]);
-                    
-                    // For each road, get coordinates and dispatch event to map
-                    for (const road of selectedRoads) {
-                      try {
-                        const coordinates = await getRoadCoordinates(road);
-                        if (coordinates) {
-                          // Dispatch event for map to add road line
-                          const event = new CustomEvent('road-selection-added', {
-                            detail: {
-                              name: road,
-                              coordinates,
-                              type: 'road'
-                            }
-                          });
-                          window.dispatchEvent(event);
-                        }
-                      } catch (error) {
-                        console.error(`Error getting coordinates for road ${road}:`, error);
-                      }
-                    }
-                    
-                    // Clear the selected roads after adding
-                    // Make sure to call both the setter and the onChange callback
-                    setSelectedRoads?.([]);
-                    onSelectedRoadsChange?.([]);
-                  }
-                }} 
-                disabled={(activeTab === "points-of-interest" && selectedPointsOfInterest.length === 0) || 
-                          (activeTab === "road" && selectedRoads.length === 0) ||
-                          (activeTab === "city" && selectedCities.length === 0 && selectedCounties.length === 0) ||
-                          (activeTab === "agency-districts" && selectedAgencyDistricts.length === 0 && selectedAgencySubdistricts.length === 0)}
-                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
-              >
-                Add Selection
-              </Button>
-              
-              <Button 
-                onClick={() => setShowClearConfirmation(true)} 
-                disabled={selections.length === 0}
-                className="bg-red-500 hover:bg-red-600 text-white"
-              >
-                Clear All
-              </Button>
-              </div>
-              
-              {/* Confirmation Dialog for Clear Selections */}
+            </Tabs>        
               {showClearConfirmation && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                   <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
@@ -2459,11 +2360,157 @@ export function LocationSelector({
                       >
                         Cancel
                       </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Intersection Popup */}
+              {showIntersectionPopup && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+                    <h3 className="text-lg font-semibold mb-4">Selection Options</h3>
+                    <p className="mb-6">
+                      {intersectionType === 'road-city' 
+                        ? `You have selected both Road "${intersectionItems.road}" and Political Subdivision "${intersectionItems.entity}". What would you like to do?` 
+                        : `You have selected both Road "${intersectionItems.road}" and Agency Defined District "${intersectionItems.entity}". What would you like to do?`}
+                    </p>
+                    <div className="flex justify-end gap-2">
                       <Button 
-                        onClick={clearAllSelections} 
-                        className="bg-red-500 hover:bg-red-600 text-white"
+                        onClick={() => setShowIntersectionPopup(false)} 
+                        variant="outline"
                       >
-                        Clear All
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          // Handle intersection confirmation
+                          setShowIntersectionPopup(false);
+                          
+                          // Find the road and entity selections
+                          const roadSelections = selections.filter(s => s.type === "road");
+                          const entitySelections = selections.filter(s => [
+                            "city", "county", "district", "subdistrict"
+                          ].includes(s.type));
+                          
+                          // Extract the actual road and entity names from the selections
+                          const roadName = roadSelections[0]?.selection as string || intersectionItems.road;
+                          const entityName = entitySelections[0]?.selection as string || intersectionItems.entity;
+                          console.log('Extracted road name:', roadName, 'and entity name:', entityName);
+                          
+                          // Determine entity type
+                          const entityType = intersectionType === 'road-city' ? 
+                            (selections.some(s => s.type === "county") ? 'county' : 'city') : 
+                            (selections.some(s => s.type === "subdistrict") ? 'subdistrict' : 'district');
+                          console.log('Determined entity type:', entityType, 'for intersection type:', intersectionType);
+                          
+                          // Create an intersection event with the road and entity details
+                          const intersectionEvent = new CustomEvent('intersection-requested', {
+                            detail: {
+                              type: intersectionType,
+                              roadSelections,
+                              entitySelections,
+                              roadName: roadName,
+                              entityName: entityName,
+                              entityType: entityType
+                            }
+                          });
+                          window.dispatchEvent(intersectionEvent);
+                          
+                          // Create a formatted intersection name using the extracted names
+                          const intersectionName = `${roadName} ∩ ${entityName}`;
+                          console.log('Creating intersection with name:', intersectionName);
+                          
+                          // Force the type to be string to ensure it's displayed correctly
+                          // Add a new selection of type "intersection"
+                          const newIntersection: LocationSelection = {
+                            type: "intersection" as LocationSelectionType,
+                            selection: intersectionName as string,
+                            operator: "AND"
+                          };
+                          console.log('New intersection selection object:', newIntersection);
+                          
+                          // Force an update to the UI by creating a new array
+                          // This ensures React detects the change and re-renders
+                          
+                          // Remove the original road and entity selections
+                          const otherSelections = selections.filter(s => 
+                            s.type !== "road" && 
+                            s.type !== "city" && 
+                            s.type !== "county" && 
+                            s.type !== "district" && 
+                            s.type !== "subdistrict"
+                          );
+                          
+                          // Update selections state with only the intersection
+                          // This needs to happen before removing the roads/entities from the map
+                          // to ensure the selection state is updated correctly
+                          onSelectionsChange?.([...otherSelections, newIntersection]);
+                          
+                          // Then remove the original road selections from the map
+                          roadSelections.forEach(roadSelection => {
+                            const roadName = typeof roadSelection.selection === 'string' ? 
+                              roadSelection.selection : Array.isArray(roadSelection.selection) ? 
+                              roadSelection.selection[0] : '';
+                            
+                            // Remove the road from the map using a direct removal event
+                            // This bypasses the selection-removed event which might not work correctly
+                            const roadEvent = new CustomEvent('remove-map-layer', {
+                              detail: { 
+                                type: 'road',
+                                name: roadName,
+                                layerPattern: `road-layer-${roadName.replace(/\s+/g, '-').toLowerCase()}`
+                              }
+                            });
+                            window.dispatchEvent(roadEvent);
+                            
+                            // Also dispatch the standard event for completeness
+                            const selectionEvent = new CustomEvent('road-selection-removed', {
+                              detail: { 
+                                type: 'road',
+                                selection: roadName,
+                                name: roadName
+                              }
+                            });
+                            window.dispatchEvent(selectionEvent);
+                          });
+                          
+                          // Then remove the original entity selections from the map
+                          entitySelections.forEach(entitySelection => {
+                            const entityName = typeof entitySelection.selection === 'string' ? 
+                              entitySelection.selection : Array.isArray(entitySelection.selection) ? 
+                              entitySelection.selection[0] : '';
+                            
+                            // Remove the entity from the map using a direct removal event
+                            const entityType = entitySelection.type;
+                            const eventType = `${entityType}-boundary-removed`;
+                            const event = new CustomEvent(eventType, {
+                              detail: { 
+                                name: entityName,
+                                type: entityType,
+                                selection: entityName
+                              }
+                            });
+                            window.dispatchEvent(event);
+                          });
+                          
+                          // Update the UI state to reflect the changes
+                          if (setSelectedRoads) setSelectedRoads([]);
+                          if (setSelectedCities) setSelectedCities([]);
+                          if (setSelectedCounties) setSelectedCounties([]);
+                          if (setSelectedAgencyDistricts) setSelectedAgencyDistricts([]);
+                          // Clear the subdistricts state to remove the badge
+                          setSelectedAgencySubdistricts([]);
+                          
+                          // Show a toast notification
+                          toast({
+                            title: "Finding Intersection",
+                            description: `Finding the intersection between ${intersectionItems.road} and ${intersectionItems.entity}...`,
+                            duration: 3000
+                          });
+                        }}
+                      >
+                        Find Intersection
                       </Button>
                     </div>
                   </div>
@@ -2471,43 +2518,7 @@ export function LocationSelector({
               )}
             </div>
           </div>
-          
-          {/* Draw functionality moved to its own tab */}
         </div>
       </div>
-      
-      {/* Intersection Dialog */}
-      <IntersectionDialog 
-        isOpen={showIntersectionDialog}
-        onIntersect={handleIntersection}
-        onKeepSeparate={handleKeepSeparate}
-        onClose={() => setShowIntersectionDialog(false)}
-        roadSelection={pendingRoadSelections}
-        politicalSubdivisions={pendingPoliticalSubdivisions}
-      />
-      
-      {/* No Intersection Alert */}
-      <NoIntersectionAlert
-        isOpen={showNoIntersectionAlert}
-        onClose={() => setShowNoIntersectionAlert(false)}
-        roadName={noIntersectionInfo.roadName}
-        subdivisionName={noIntersectionInfo.subdivisionName}
-      />
-      
-      {/* No Results Alert */}
-      {intersectionNoResults && (
-        <div className="p-4 mt-4 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-800 text-sm">No intersection found between the selected road and political subdivision.</p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="mt-2"
-            onClick={() => setIntersectionNoResults(false)}
-          >
-            Dismiss
-          </Button>
-        </div>
-      )}
-    </div>
   )
 }

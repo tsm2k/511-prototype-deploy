@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2, Filter as FilterIcon, Info, BarChart, AlertTriangle } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { format } from "date-fns"
@@ -27,6 +27,7 @@ import { executeQuery, fetchDataSourcesMetadata, type DataSourceMetadata } from 
 import { buildQueryRequest } from "@/services/query-builder"
 import { LocationFilter, TimeFilter } from "@/types/filters"
 import { useToast } from "@/hooks/use-toast"
+import { motion } from "framer-motion";
 
 // Simple Spinner component
 const Spinner = ({ className }: { className?: string }) => (
@@ -39,11 +40,8 @@ const Spinner = ({ className }: { className?: string }) => (
 
 
 // Define the structure for a single filter
-// Define the types of location selections
-type LocationSelectionType = "road" | "city" | "district" | "subdistrict" | "polygon" | "county"
-
-// Import PolygonCoordinates from types/filters
-import { PolygonCoordinates } from '@/types/filters';
+// Import types from types/filters
+import { PolygonCoordinates, LocationSelectionType } from '@/types/filters';
 
 // Define the interface for location selections
 interface LocationSelection {
@@ -76,104 +74,6 @@ interface Filter {
   // New dataset structure
   selectedDatasets: string[] // Array of selected dataset types
   attributeFilters: Record<string, Record<string, string[]>> // Dynamic attribute filters for datasets
-  // datasetFilters: {
-  //   // Car Events filters
-  //   carEvents: {
-  //     enabled: boolean
-  //     types: string[]
-  //     showFilters: boolean
-  //   }
-  //   // Lane Blockages filters
-  //   laneBlockages: {
-  //     enabled: boolean
-  //     showFilters: boolean
-  //     blockType: string[]
-  //     allLanesAffected: string[]
-  //     lanesAffected: {
-  //       positive: number[]
-  //       negative: number[]
-  //     }
-  //     additionalFilters: {
-  //       negative_exit_ramp_affected: boolean[]
-  //       negative_entrance_ramp_affected: boolean[]
-  //       positive_exit_ramp_affected: boolean[]
-  //       positive_entrance_ramp_affected: boolean[]
-  //       negative_inside_shoulder_affected: boolean[]
-  //       negative_outside_shoulder_affected: boolean[]
-  //       positive_inside_shoulder_affected: boolean[]
-  //       positive_outside_shoulder_affected: boolean[]
-  //     }
-  //   }
-  //   // Rest Area filters
-  //   restArea: {
-  //     enabled: boolean
-  //     showFilters: boolean
-  //     filters: {
-  //       capacity: string[]
-  //       spacesAvailable: string[]
-  //       siteAreaStatus: string[]
-  //       amenities: string[]
-  //     }
-  //   }
-  //   // Dynamic Message Signs filters
-  //   dynamicMessageSigns: {
-  //     enabled: boolean
-  //     showFilters: boolean
-  //   }
-  //   // Traffic Timing System filters
-  //   trafficTimingSystem: {
-  //     enabled: boolean
-  //     showFilters: boolean
-  //   }
-  //   // Weather Events filters
-  //   weatherEvents: {
-  //     enabled: boolean
-  //     showFilters: boolean
-  //   }
-  //   // Social Events filters
-  //   socialEvents: {
-  //     enabled: boolean
-  //     showFilters: boolean
-  //   }
-  //   // Road Weather filters
-  //   roadWeather: {
-  //     enabled: boolean
-  //     showFilters: boolean
-  //   }
-  //   // General filters that apply to all datasets
-  //   priorities: string[]
-  //   eventStatuses: string[]
-  // }
-  // Keep the old structure for backward compatibility during transition
-  // datasets: {
-  //   carEvents: string[]
-  //   laneBlockages: {
-  //     blockType: string[]
-  //     allLanesAffected: string[]
-  //     lanesAffected: {
-  //       positive: number[]
-  //       negative: number[]
-  //     }
-  //     additionalFilters: {
-  //       negative_exit_ramp_affected: boolean[]
-  //       negative_entrance_ramp_affected: boolean[]
-  //       positive_exit_ramp_affected: boolean[]
-  //       positive_entrance_ramp_affected: boolean[]
-  //       negative_inside_shoulder_affected: boolean[]
-  //       negative_outside_shoulder_affected: boolean[]
-  //       positive_inside_shoulder_affected: boolean[]
-  //       positive_outside_shoulder_affected: boolean[]
-  //     }
-  //   }
-  //   priorities: string[]
-  //   eventStatuses: string[]
-  //   restAreaFilters: {
-  //     capacity: string[]
-  //     spacesAvailable: string[]
-  //     siteAreaStatus: string[]
-  //     amenities: string[]
-  //   }
-  // }
 }
 
 interface SelectorPanelProps {
@@ -184,18 +84,46 @@ interface SelectorPanelProps {
   }) => void
 }
 
+import { useFilterContext } from "@/contexts/filter-context"
+
 export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }: SelectorPanelProps) {
-  // State for managing multiple filters
-  const [filters, setFilters] = useState<Filter[]>([])
-  const [activeFilterId, setActiveFilterId] = useState<string | null>(null)
+  // Get filter state from context
+  const { filterState, setFilterState } = useFilterContext();
+  
+  // State for managing multiple filters - initialize from context if available
+  const [filters, setFilters] = useState<Filter[]>(() => {
+    if (filterState && filterState.filters) {
+      return filterState.filters;
+    }
+    return [];
+  });
+  
+  const [activeFilterId, setActiveFilterId] = useState<string | null>(() => {
+    if (filterState && filterState.activeFilterId) {
+      return filterState.activeFilterId;
+    }
+    return null;
+  });
+  
   const [isLoading, setIsLoading] = useState(false)
   const [filterToDelete, setFilterToDelete] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   
   // State for results display
-  const [isResultsOpen, setIsResultsOpen] = useState(false)
+  const [isResultsOpen, setIsResultsOpen] = useState(false);
+  const [showResultsHighlight, setShowResultsHighlight] = useState(false);
+  const [noResultsFound, setNoResultsFound] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [resultsSummary, setResultsSummary] = useState<{total: number, byDataset: Record<string, number>}>({total: 0, byDataset: {}})
+  
+  // Save filter state to context when it changes
+  useEffect(() => {
+    setFilterState({
+      filters,
+      activeFilterId
+    });
+  }, [filters, activeFilterId, setFilterState])
   
   // Helper function to create a new empty filter
   const createEmptyFilter = useCallback((): Filter => ({
@@ -324,58 +252,107 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   const getLocationOverview = (filter: Filter) => {
     // If we have location selections, use those for the overview
     if (filter.locationSelections && filter.locationSelections.length > 0) {
-      // Group selections by type
-      const roadSelections = filter.locationSelections.filter(s => s.type === "road");
-      const citySelections = filter.locationSelections.filter(s => s.type === "city");
-      const districtSelections = filter.locationSelections.filter(s => s.type === "district");
-      
-      const parts = [];
-      
-      // Format road selections
-      if (roadSelections.length > 0) {
-        const roadNames = roadSelections.flatMap(s => 
-          Array.isArray(s.selection) ? s.selection : [s.selection]
-        );
-        parts.push(`Roads: ${roadNames.join(", ")}`);
-      }
-      
-      // Format city selections
-      if (citySelections.length > 0) {
-        const cityNames = citySelections.flatMap(s => 
-          Array.isArray(s.selection) ? s.selection : [s.selection]
-        );
-        parts.push(`Cities: ${cityNames.join(", ")}`);
-      }
-      
-      // Format district selections
-      if (districtSelections.length > 0) {
-        const districtNames = districtSelections.flatMap(s => 
-          Array.isArray(s.selection) ? s.selection : [s.selection]
-        );
-        parts.push(`Districts: ${districtNames.join(", ")}`);
-      }
-      
-      // Join all parts with the appropriate operators
-      if (parts.length === 0) {
-        return "No locations selected";
-      } else if (parts.length === 1) {
-        return parts[0];
-      } else {
-        // Insert operators between parts based on the selections
-        let result = parts[0];
-        for (let i = 1; i < parts.length; i++) {
-          // Find the operator from the previous selection of the same type
-          const prevSelectionOfType = filter.locationSelections.find(s => {
-            if (i === 1 && s.type === "road" && roadSelections.length > 0) return true;
-            if (i === 2 && s.type === "city" && citySelections.length > 0) return true;
-            return false;
-          });
-          
-          const operator = prevSelectionOfType?.operator || "AND";
-          result += ` ${operator} ${parts[i]}`;
+      // Format each selection in the same way as location-selector.tsx
+      const formattedSelections = filter.locationSelections.map(selection => {
+        let content = "";
+        
+        switch (selection.type) {
+          case "intersection":
+            // Handle intersection selection
+            // For intersection, the selection is a string like "I-65 ∩ Fort Wayne"
+            if (Array.isArray(selection.selection)) {
+              content = `Intersection: ${selection.selection.join(" | ")}`;
+            } else {
+              // Display the intersection name directly without any prefix
+              content = selection.selection as string;
+              
+              // If the content is empty, create a fallback display
+              if (!content || content.trim() === '') {
+                content = 'Road Intersection';
+              }
+            }
+            break;
+          case "polygon":
+            // Handle polygon selection
+            const polygonData = selection.selection as any;
+            
+            // Check if this is an intersection with a name
+            if (polygonData.type === 'Intersection' && polygonData.name) {
+              // Use the intersection name (road ∩ subdivision)
+              content = polygonData.name;
+            } else {
+              // Fallback to the old behavior for other polygon types
+              const boundingBox = polygonData.boundingBox;
+              content = boundingBox ? 
+                `Custom Area: SW(${boundingBox.southwest[0].toFixed(4)}, ${boundingBox.southwest[1].toFixed(4)}) - NE(${boundingBox.northeast[0].toFixed(4)}, ${boundingBox.northeast[1].toFixed(4)})` :
+                `Custom ${polygonData.type} Area`;
+            }
+            break;
+          case "road":
+            if (Array.isArray(selection.selection)) {
+              content = `Roads: ${selection.selection.join(" | ")}`;
+            } else {
+              // Make sure we're dealing with a string selection
+              const road = selection.selection as string;
+              const range = selection.mileMarkerRange;
+              content = range ? `Road: ${road} (MM ${range.min}-${range.max})` : road;
+            }
+            break;
+          case "poi":
+            if (Array.isArray(selection.selection)) {
+              content = `PoIs: ${selection.selection.join(" | ")}`;
+            } else {
+              content = `PoI: ${selection.selection as string}`;
+              // Add radius information if available
+              if (selection.poiRadius !== undefined && selection.poiRadius > 0) {
+                content += ` (${selection.poiRadius} mi radius)`;
+              }
+            }
+            break;
+          case "city":
+            if (Array.isArray(selection.selection)) {
+              content = `Cities: ${selection.selection.join(" | ")}`;
+            } else {
+              // Check if this is a Point of Interest (has poiRadius property)
+              if (selection.poiRadius !== undefined) {
+                content = `PoI: ${selection.selection as string}`;
+                // Add radius information if available
+                if (selection.poiRadius > 0) {
+                  content += ` (${selection.poiRadius} mi radius)`;
+                }
+              } else {
+                content = `City: ${selection.selection as string}`;
+              }
+            }
+            break;
+          case "district":
+            if (Array.isArray(selection.selection)) {
+              content = `Districts: ${selection.selection.join(" | ")}`;
+            } else {
+              content = `District: ${selection.selection as string}`;
+            }
+            break;
+          case "subdistrict":
+            if (Array.isArray(selection.selection)) {
+              content = `Subdistricts: ${selection.selection.join(" | ")}`;
+            } else {
+              content = `Subdistrict: ${selection.selection as string}`;
+            }
+            break;
+          case "county":
+            if (Array.isArray(selection.selection)) {
+              content = `Counties: ${selection.selection.join(" | ")}`;
+            } else {
+              content = `County: ${selection.selection as string}`;
+            }
+            break;
         }
-        return result;
-      }
+        
+        return content;
+      });
+      
+      // Join all formatted selections with a pipe separator
+      return formattedSelections.join(' | ');
     }
     
     // Fall back to the old method if no selections
@@ -390,23 +367,19 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   const datasetSummaryRef = { getSummary: null as null | (() => string) }
   
   const getTimeframeOverview = (filter: Filter) => {
+    // Check if we have access to the getSummary function from the TimeframeSelector component
+    if (timeframeSummaryRef.getSummary) {
+      return timeframeSummaryRef.getSummary();
+    }
+    
     // Check if we have timeframe selections
     if (filter.timeframeSelections && filter.timeframeSelections.length > 0) {
-      // Check if we have access to the getSummary function from the TimeframeSelector component
-      if (timeframeSummaryRef.getSummary) {
-        return timeframeSummaryRef.getSummary();
-      }
+      const parts: string[] = [];
       
-      // Format selections exactly like they appear in the Current Selections display
-      const parts = [];
-      
-      // Process each selection
-      for (let i = 0; i < filter.timeframeSelections.length; i++) {
-        const selection = filter.timeframeSelections[i];
-        let content = "";
-        
+      // Process each selection based on its type
+      filter.timeframeSelections.forEach(selection => {
         switch (selection.type) {
-          case "dateRange":
+          case "dateRange": {
             const formatDate = (date: Date) => {
               return date.toLocaleDateString('en-US', { 
                 year: 'numeric',
@@ -414,40 +387,83 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                 day: 'numeric'
               });
             };
-            content = `${formatDate(selection.range.start)} to ${formatDate(selection.range.end)}`;
+            parts.push(`${formatDate(selection.range.start)} to ${formatDate(selection.range.end)}`);
             break;
-          case "weekdays":
-            content = `Days: ${selection.weekdays.join(", ")}`;
+          }
+          case "weekdays": {
+            const weekdays = selection.weekdays;
+            let weekdayStr = "";
+            
+            if (weekdays.length === 7) {
+              weekdayStr = "Every day";
+            } else if (weekdays.length === 5 &&
+                      weekdays.includes("Mon") &&
+                      weekdays.includes("Tue") &&
+                      weekdays.includes("Wed") &&
+                      weekdays.includes("Thu") &&
+                      weekdays.includes("Fri")) {
+              weekdayStr = "Weekdays";
+            } else if (weekdays.length === 2 &&
+                      weekdays.includes("Sat") &&
+                      weekdays.includes("Sun")) {
+              weekdayStr = "Weekends";
+            } else {
+              weekdayStr = `${weekdays.slice(0, weekdays.length - 1).join(", ")}${weekdays.length > 1 ? " and " : ""}${weekdays[weekdays.length - 1]}`;
+            }
+            
+            parts.push(`${weekdayStr} each week`);
             break;
-          case "monthDays":
-            content = `Month days: ${selection.monthDays.join(", ")}`;
+          }
+          case "monthDays": {
+            const monthDays = selection.monthDays;
+            const formattedDays = monthDays.map(day => {
+              if (day === "1" || day === "21" || day === "31") return `${day}st`;
+              if (day === "2" || day === "22") return `${day}nd`;
+              if (day === "3" || day === "23") return `${day}rd`;
+              if (day === "last") return "last day";
+              return `${day}th`;
+            });
+            
+            let monthDayStr = "";
+            if (formattedDays.length <= 3) {
+              monthDayStr = `The ${formattedDays.slice(0, formattedDays.length - 1).join(", ")}${formattedDays.length > 1 ? " and " : ""}${formattedDays[formattedDays.length - 1]} of each month`;
+            } else {
+              monthDayStr = `${monthDays.length} selected days of the month`;
+            }
+            
+            parts.push(monthDayStr);
             break;
-          case "holidays":
-            content = `Holidays: ${selection.holidays.join(", ")}`;
+          }
+          case "holidays": {
+            const holidays = selection.holidays;
+            if (holidays.length <= 3) {
+              parts.push(`${holidays.slice(0, holidays.length - 1).join(", ")}${holidays.length > 1 ? " and " : ""}${holidays[holidays.length - 1]}`);
+            } else {
+              parts.push(`${holidays.length} selected holidays`);
+            }
             break;
-          case "monthWeek":
-            content = `${selection.monthWeek} ${selection.monthWeekday} of each month`;
+          }
+          case "monthWeek": {
+            parts.push(`The ${selection.monthWeek} ${selection.monthWeekday} of the year`);
             break;
+          }
+          case "hours": {
+            const formatHour = (hour: number) => {
+              if (hour === 0 || hour === 24) return "12 AM";
+              if (hour === 12) return "12 PM";
+              return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
+            };
+            
+            if (selection.hours.length === 2) {
+              parts.push(`${formatHour(selection.hours[0])} to ${formatHour(selection.hours[1])}`);
+            }
+            break;
+          }
         }
-        
-        parts.push(content);
-      }
+      });
       
-      // Join all parts with the appropriate operators
-      if (parts.length === 0) {
-        return "No timeframe selected";
-      } else if (parts.length === 1) {
-        return parts[0];
-      } else {
-        // Insert operators between parts
-        let result = parts[0];
-        for (let i = 1; i < parts.length; i++) {
-          const prevSelection = filter.timeframeSelections[i-1];
-          const operator = prevSelection.operator || "AND";
-          result += ` ${operator} ${parts[i]}`;
-        }
-        return result;
-      }
+      // Join all parts with semicolons
+      return parts.join("; ");
     }
     
     // Fallback to the old format if no timeframe selections
@@ -464,7 +480,20 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       return `${formatDate(filter.timeframe.start)} to ${formatDate(filter.timeframe.end)}`;
     }
     
-    return "No timeframe selected";
+    // Show default date range (last 7 days to today) instead of "No timeframe selected"
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 7);
+    const defaultEndDate = new Date();
+    
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    };
+    
+    return `${formatDate(defaultStartDate)} to ${formatDate(defaultEndDate)}`;
   }
   
   // State to store dataset metadata for name lookups
@@ -506,7 +535,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
     );
     
     if (datasetDisplayNames.length <= 3) {
-      return "Datasets: " + datasetDisplayNames.join(", ");
+      return datasetDisplayNames.join(", ");
     }
     
     return "Datasets: " + `${datasetDisplayNames.slice(0, 2).join(", ")} + ${datasetDisplayNames.length - 2} more`;
@@ -535,7 +564,8 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         route: [],
         region: [],
         county: [],
-        city: []
+        city: [],
+        locationSelections: activeFilter.locationSelections // Add the full locationSelections array
       };
       
       // Process location selections if available
@@ -580,9 +610,21 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
           } else if (selection.type === 'city' && selection.selection) {
             // Make sure we're dealing with string or string[] for cities
             if (typeof selection.selection === 'string' || Array.isArray(selection.selection)) {
-              const cities = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
-              if (locationFilter.city) {
-                locationFilter.city.push(...cities);
+              // Check if this is a POI (has poiRadius property)
+              if (selection.poiRadius === undefined || selection.poiRadius <= 0) {
+                // Only add to city array if it's not a POI
+                const cities = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
+                if (locationFilter.city) {
+                  locationFilter.city.push(...cities);
+                }
+              }
+            }
+          } else if (selection.type === 'county' && selection.selection) {
+            // Make sure we're dealing with string or string[] for counties
+            if (typeof selection.selection === 'string' || Array.isArray(selection.selection)) {
+              const counties = Array.isArray(selection.selection) ? selection.selection : [selection.selection];
+              if (locationFilter.county) {
+                locationFilter.county.push(...counties);
               }
             }
           } else if (selection.type === 'polygon' && selection.selection && !Array.isArray(selection.selection) && typeof selection.selection !== 'string') {
@@ -628,7 +670,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       }
       
       // Build query request
-      const queryRequest = buildQueryRequest(
+      const queryRequest = await buildQueryRequest(
         activeFilter.selectedDatasets,
         activeFilter.attributeFilters,
         locationFilter,
@@ -738,17 +780,36 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         byDataset: resultsByDataset
       });
       
-      // Show toast if no results were found
+      // Always open the results panel and scroll to it
+      setIsResultsOpen(true);
+      
       if (totalResults === 0) {
+        // Set no results found flag
+        setNoResultsFound(true);
+        setShowResultsHighlight(false);
+        
+        // Show toast notification
         toast({
           title: "No Results Found",
           description: "Your query did not return any results. Try adjusting your filters.",
           variant: "destructive",
         });
       } else {
-        // Open the results panel when results are found
-        setIsResultsOpen(true);
+        // Results found case
+        setNoResultsFound(false);
+        setShowResultsHighlight(true);
       }
+      
+      // Scroll to the results section in both cases
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+        // Turn off highlights after animation completes
+        setTimeout(() => {
+          setShowResultsHighlight(false);
+          setNoResultsFound(false);
+        }, 3000);
+      }, 100);
       
       // Dispatch a custom event to notify the map view of new data
       const mapDataEvent = new CustomEvent('map-data-updated', { detail: results });
@@ -767,19 +828,26 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       <h2 className="text-xl font-bold mb-2">Data Filters</h2>
 
       <div className="flex items-center space-x-2">
+      <div className="relative group">
         <Button
           onClick={addNewFilter}
           variant="outline"
           className="flex items-center"
+          disabled
         >
-        <Plus className="mr-2 h-4 w-4" />
-          Add Filter
+          + Add Filter
         </Button>
+        <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+            Backend Fixes Required
+          </span>
+        </div>
 
-        {/* <div className="relative group">
+        <div className="relative group">
+  
           <Button
             variant="outline"
-            className="flex items-center"
+            className="flex items-center opacity-50 cursor-not-allowed"
+            disabled
           >
             Save Filter
           </Button>
@@ -791,44 +859,20 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         <div className="relative group">
           <Button
             variant="outline"
-            className="flex items-center"
+            className="flex items-center opacity-50 cursor-not-allowed"
+            disabled
           >
             Load Filter
           </Button>
           <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
             Not functional
           </span>
-        </div> */}
-        <div className="relative group">
-  <Button
-    variant="outline"
-    className="flex items-center opacity-50 cursor-not-allowed"
-    disabled
-  >
-    Save Filter
-  </Button>
-  <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
-    Not functional
-  </span>
-</div>
-
-<div className="relative group">
-  <Button
-    variant="outline"
-    className="flex items-center opacity-50 cursor-not-allowed"
-    disabled
-  >
-    Load Filter
-  </Button>
-  <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
-    Not functional
-  </span>
-</div>
+        </div>
 
       </div>
     </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 border-2 border-blue-200 rounded-lg p-4 pb-2">
         {filters.map((filter) => (
           <Card key={filter.id} className={`mb-4 ${filter.active ? 'border-green-500' : 'border-gray-200'} ${activeFilterId === filter.id ? 'shadow-md' : ''}`}>
             <CardHeader className="p-3">
@@ -1082,6 +1126,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                         <DatasetAttributeFilters
                           selectedDatasets={filter.selectedDatasets}
                           selectedFilters={filter.attributeFilters}
+                          timeframeSelections={filter.timeframeSelections || []}
                           onFilterChange={(datasetId, attributeName, values) => {
                             setFilters(prevFilters => prevFilters.map(f => {
                               if (f.id === filter.id) {
@@ -1110,6 +1155,28 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
             )}
           </Card>
         ))}
+        
+        {/* Apply Filters Button - Moved inside the filters container */}
+        <div className="flex gap-2 mt-4">
+          <Button 
+            className="flex-1" 
+            onClick={executeFilterQuery} 
+            disabled={isLoading || !activeFilterId}
+            variant="default"
+          >
+            {isLoading ? (
+              <>
+                <Spinner className="mr-2 h-4 w-4" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <FilterIcon className="mr-2 h-4 w-4" />
+                Apply Filters
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Delete Filter Confirmation Dialog */}
@@ -1133,34 +1200,37 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         </AlertDialogContent>
       </AlertDialog>
       
-      <div className="mt-auto pt-4 flex gap-2">
-        <Button 
-          className="flex-1" 
-          onClick={executeFilterQuery} 
-          disabled={isLoading || !activeFilterId}
-          variant="default"
-        >
-          {isLoading ? (
-            <>
-              <Spinner className="mr-2 h-4 w-4" />
-              Processing...
-            </>
-          ) : (
-            <>
-              <FilterIcon className="mr-2 h-4 w-4" />
-              Apply Filters
-            </>
-          )}
-        </Button>
-      </div>
+      {/* Apply Filters button moved up inside the filters container */}
       
       {/* Results Summary Card */}
       {queryResults && (
-        <Collapsible
-          open={isResultsOpen}
-          onOpenChange={setIsResultsOpen}
-          className="w-full border rounded-md mt-4"
+        <motion.div 
+          ref={resultsRef}
+          initial={{ y: 0 }}
+          animate={{
+            y: showResultsHighlight ? [0, -10, 0, -10, 0] : 0,
+            boxShadow: showResultsHighlight ? 
+              ["0 0 0 0 rgba(59, 130, 246, 0)", "0 0 15px 5px rgba(59, 130, 246, 0.5)", "0 0 0 0 rgba(59, 130, 246, 0)", "0 0 15px 5px rgba(59, 130, 246, 0.5)", "0 0 0 0 rgba(59, 130, 246, 0)"] : 
+              "0 0 0 0 rgba(59, 130, 246, 0)"
+          }}
+          transition={{ duration: 2.5 }}
+          className={`w-full mt-4 ${showResultsHighlight ? 'ring-2 ring-blue-500 relative' : noResultsFound ? 'ring-2 ring-amber-500 relative' : 'relative'}`}
         >
+          {showResultsHighlight && (
+            <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-3 py-1 rounded-t-md text-sm font-medium animate-pulse">
+              Results Found!
+            </div>
+          )}
+          {noResultsFound && (
+            <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-amber-500 text-white px-3 py-1 rounded-t-md text-sm font-medium animate-pulse">
+              No Results Found
+            </div>
+          )}
+          <Collapsible
+            open={isResultsOpen}
+            onOpenChange={setIsResultsOpen}
+            className="w-full border rounded-md overflow-hidden"
+          >
           <div className="flex items-center justify-between p-4">
             <div className="flex items-center space-x-2">
               <BarChart className="h-4 w-4 text-blue-500" />
@@ -1445,7 +1515,8 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
               )}
             </div>
           </CollapsibleContent>
-        </Collapsible>
+          </Collapsible>
+        </motion.div>
       )}
     </div>
   )
