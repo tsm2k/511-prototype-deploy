@@ -5,8 +5,11 @@
 // Base URL for the external API (for reference only)
 // const EXTERNAL_API_BASE_URL = 'https://127.0.0.1:5005/api/511DataAnalytics';
 
+// Import the path utility
+import { getBasePath } from "../utils/path-utils";
+
 // Use local proxy API to avoid CORS issues
-const API_PROXY_URL = '/api/proxy';
+const API_PROXY_URL = `${getBasePath()}/api/proxy`;
 
 /**
  * Interface for datasource metadata

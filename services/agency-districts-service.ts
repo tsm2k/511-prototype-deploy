@@ -1,9 +1,11 @@
 import { Feature, FeatureCollection } from 'geojson';
+import { getBasePath } from "../utils/path-utils";
 
 // Function to fetch districts from GeoJSON file
 export async function fetchDistricts(): Promise<string[]> {
   try {
-    const response = await fetch('/geojson/districts-cleaned.geojson');
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/geojson/districts-cleaned.geojson`);
     const data: FeatureCollection = await response.json();
     
     // Extract district names from the GeoJSON features
@@ -22,7 +24,8 @@ export async function fetchDistricts(): Promise<string[]> {
 // Function to fetch subdistricts from GeoJSON file
 export async function fetchSubdistricts(): Promise<string[]> {
   try {
-    const response = await fetch('/geojson/subdistricts-cleaned.geojson');
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/geojson/subdistricts-cleaned.geojson`);
     const data: FeatureCollection = await response.json();
     
     // Extract subdistrict names from the GeoJSON features
@@ -41,7 +44,8 @@ export async function fetchSubdistricts(): Promise<string[]> {
 // Function to get district boundary from GeoJSON file
 export async function getDistrictBoundary(districtName: string): Promise<Feature | null> {
   try {
-    const response = await fetch('/geojson/districts-cleaned.geojson');
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/geojson/districts-cleaned.geojson`);
     const data: FeatureCollection = await response.json();
     
     // Find the district feature by name
@@ -59,7 +63,8 @@ export async function getDistrictBoundary(districtName: string): Promise<Feature
 // Function to get subdistrict boundary from GeoJSON file
 export async function getSubdistrictBoundary(subdistrictName: string): Promise<Feature | null> {
   try {
-    const response = await fetch('/geojson/subdistricts-cleaned.geojson');
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/geojson/subdistricts-cleaned.geojson`);
     const data: FeatureCollection = await response.json();
     
     // Find the subdistrict feature by name

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
+import { getBasePath } from "@/utils/path-utils"
 import { useRouter } from "next/router"
 import { useToast } from "@/components/ui/use-toast"
 import * as turf from "@turf/turf"
@@ -155,7 +156,8 @@ export function LocationSelector({
   useEffect(() => {
     const fetchPointsOfInterest = async () => {
       try {
-        const response = await fetch('/geojson/point-of-interest-cleaned.geojson')
+        const basePath = getBasePath();
+        const response = await fetch(`${basePath}/geojson/point-of-interest-cleaned.geojson`)
         const data = await response.json()
         
         // Extract fullname values from features
@@ -180,7 +182,8 @@ export function LocationSelector({
     const fetchCities = async () => {
       try {
         console.log('Fetching cities...');
-        const response = await fetch('/geojson/city-cleaned.geojson');
+        const basePath = getBasePath();
+        const response = await fetch(`${basePath}/geojson/city-cleaned.geojson`);
         if (!response.ok) {
           throw new Error(`Failed to fetch cities: ${response.status} ${response.statusText}`);
         }
@@ -211,7 +214,8 @@ export function LocationSelector({
     const fetchCounties = async () => {
       try {
         console.log('Fetching counties...');
-        const response = await fetch('/geojson/counties-cleaned.geojson');
+        const basePath = getBasePath();
+        const response = await fetch(`${basePath}/geojson/counties-cleaned.geojson`);
         if (!response.ok) {
           throw new Error(`Failed to fetch counties: ${response.status} ${response.statusText}`);
         }

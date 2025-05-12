@@ -1,6 +1,7 @@
 "use client"
 
 // POI Service - Handles fetching and caching Points of Interest data
+import { getBasePath } from "../utils/path-utils";
 
 // Define interface for POI data
 export interface PointOfInterest {
@@ -25,7 +26,8 @@ export async function fetchPOIData(): Promise<Record<string, PointOfInterest>> {
   }
 
   try {
-    const response = await fetch('/geojson/point-of-interest-cleaned.geojson');
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/geojson/point-of-interest-cleaned.geojson`);
     const data = await response.json();
     
     // Process the GeoJSON features and extract POI data

@@ -1,6 +1,7 @@
 "use client"
 
 // Road Service - Handles fetching and caching Roads data from GeoJSON
+import { getBasePath } from "../utils/path-utils";
 
 // Define interface for Road data
 export interface Road {
@@ -22,7 +23,8 @@ export async function fetchRoadData(): Promise<Record<string, Road>> {
   }
 
   try {
-    const response = await fetch('/geojson/road-cleaned.geojson');
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/geojson/road-cleaned.geojson`);
     const data = await response.json();
     
     // Process the GeoJSON features and extract Road data

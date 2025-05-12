@@ -1,4 +1,5 @@
 // Service for handling political subdivisions (cities and counties)
+import { getBasePath } from "../utils/path-utils";
 
 /**
  * Get the GeoJSON coordinates for a specific city
@@ -7,7 +8,8 @@
  */
 export const getCityBoundary = async (cityName: string): Promise<any> => {
   try {
-    const response = await fetch('/geojson/city-cleaned.geojson');
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/geojson/city-cleaned.geojson`);
     if (!response.ok) {
       throw new Error(`Failed to fetch city data: ${response.status} ${response.statusText}`);
     }
@@ -38,7 +40,8 @@ export const getCityBoundary = async (cityName: string): Promise<any> => {
  */
 export const getCountyBoundary = async (countyName: string): Promise<any> => {
   try {
-    const response = await fetch('/geojson/counties-cleaned.geojson');
+    const basePath = getBasePath();
+    const response = await fetch(`${basePath}/geojson/counties-cleaned.geojson`);
     if (!response.ok) {
       throw new Error(`Failed to fetch county data: ${response.status} ${response.statusText}`);
     }
