@@ -1,19 +1,12 @@
-// // next.config.js
-// module.exports = {
-//     eslint: {
-//       ignoreDuringBuilds: true,
-//     },
-//   };
- 
-const repo = '511-prototype-deploy' // GitHub repo name
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  basePath: `/${repo}`,
-  assetPrefix: `/${repo}/`,
+  // Remove 'output: export' for Vercel deployment
+  // Remove basePath and assetPrefix for root domain deployment
+  
+  // Enable trailing slash for consistent routing
   trailingSlash: true,
 
+  // Ignore TypeScript and ESLint errors during build
   typescript: {
     ignoreBuildErrors: true,
   },
