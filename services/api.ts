@@ -2,14 +2,17 @@
  * API service for fetching data from the 511 Data Analytics API
  */
 
-// Base URL for the external API (for reference only)
-// const EXTERNAL_API_BASE_URL = 'https://127.0.0.1:5005/api/511DataAnalytics';
-
 // Import the path utility
 import { getBasePath } from "../utils/path-utils";
 
-// Use local proxy API to avoid CORS issues
-const API_PROXY_URL = `${getBasePath()}/api/proxy`;
+// External API URL
+const EXTERNAL_API_URL = 'https://in-engr-tasi02.it.purdue.edu/api/511DataAnalytics';
+
+// Determine if we're running on GitHub Pages
+const isGitHubPages = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+
+// Use direct API calls when on GitHub Pages, otherwise use the local proxy
+const API_PROXY_URL = isGitHubPages ? EXTERNAL_API_URL : `${getBasePath()}/api/proxy`;
 
 /**
  * Interface for datasource metadata
@@ -39,8 +42,13 @@ export interface DataSourceMetadataResponse {
  */
 export const fetchDataSourcesMetadata = async (): Promise<DataSourceMetadata[]> => {
   try {
-    // Use the local proxy endpoint to avoid CORS issues
-    const response = await fetch(`${API_PROXY_URL}/datasources-metadata`);
+    // Determine the endpoint based on whether we're using the proxy or direct API
+    const endpoint = isGitHubPages ? '/datasources-metadata/' : '/datasources-metadata';
+    
+    // Add CORS mode for direct API calls
+    const options = isGitHubPages ? { mode: 'cors' as RequestMode } : {};
+    
+    const response = await fetch(`${API_PROXY_URL}${endpoint}`, options);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
@@ -132,8 +140,13 @@ export interface AttributeFilterValuesResponse {
  */
 export const fetchDatasetAttributesMetadata = async (): Promise<DatasetAttributeMetadata[]> => {
   try {
-    // Use the local proxy endpoint to avoid CORS issues
-    const response = await fetch(`${API_PROXY_URL}/attributes-metadata`);
+    // Determine the endpoint based on whether we're using the proxy or direct API
+    const endpoint = isGitHubPages ? '/attributes-metadata/' : '/attributes-metadata';
+    
+    // Add CORS mode for direct API calls
+    const options = isGitHubPages ? { mode: 'cors' as RequestMode } : {};
+    
+    const response = await fetch(`${API_PROXY_URL}${endpoint}`, options);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
@@ -169,9 +182,15 @@ export const fetchAttributeFilterValues = async (
   columnNames: string[]
 ): Promise<Record<string, string[]>> => {
   try {
-    // Use the local proxy endpoint to avoid CORS issues
     const columnNamesParam = columnNames.join(',');
-    const response = await fetch(`${API_PROXY_URL}/column-filter-values?table_name=${tableName}&column_names=${columnNamesParam}`);
+    
+    // Determine the endpoint based on whether we're using the proxy or direct API
+    const endpoint = isGitHubPages ? '/column-filter-values/' : '/column-filter-values';
+    
+    // Add CORS mode for direct API calls
+    const options = isGitHubPages ? { mode: 'cors' as RequestMode } : {};
+    
+    const response = await fetch(`${API_PROXY_URL}${endpoint}?table_name=${tableName}&column_names=${columnNamesParam}`, options);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
@@ -204,14 +223,24 @@ export const executeQuery = async (queryParams: any): Promise<any> => {
   try {
     console.log('Executing query with params:', JSON.stringify(queryParams, null, 2));
     
-    // Use the local proxy endpoint to avoid CORS issues
-    const response = await fetch(`${API_PROXY_URL}/query`, {
+    // Determine the endpoint based on whether we're using the proxy or direct API
+    const endpoint = isGitHubPages ? '/query/' : '/query';
+    
+    // Set up request options
+    const options: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(queryParams),
-    });
+    };
+    
+    // Add CORS mode for direct API calls
+    if (isGitHubPages) {
+      options.mode = 'cors';
+    }
+    
+    const response = await fetch(`${API_PROXY_URL}${endpoint}`, options);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -245,8 +274,13 @@ export const executeQuery = async (queryParams: any): Promise<any> => {
 
 export const fetchLocationData = async (tableName: string = 'event_location_info'): Promise<LocationData> => {
   try {
-    // Use the local proxy endpoint to avoid CORS issues
-    const response = await fetch(`${API_PROXY_URL}/column-filter-values?table_name=${tableName}`);
+    // Determine the endpoint based on whether we're using the proxy or direct API
+    const endpoint = isGitHubPages ? '/column-filter-values/' : '/column-filter-values';
+    
+    // Add CORS mode for direct API calls
+    const options = isGitHubPages ? { mode: 'cors' as RequestMode } : {};
+    
+    const response = await fetch(`${API_PROXY_URL}${endpoint}?table_name=${tableName}`, options);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
