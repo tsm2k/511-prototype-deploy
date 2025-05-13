@@ -107,6 +107,19 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
       if (map.current.getSource(CLUSTER_SOURCE_ID)) {
         map.current.removeSource(CLUSTER_SOURCE_ID);
       }
+      
+      // Clean up line layers for MultiLineString geometries
+      if (lineLayerIds.current.length > 0) {
+        lineLayerIds.current.forEach(lineId => {
+          if (map.current?.getLayer(lineId)) {
+            map.current.removeLayer(lineId);
+          }
+          if (map.current?.getSource(lineId)) {
+            map.current.removeSource(lineId);
+          }
+        });
+        lineLayerIds.current = [];
+      }
     }
   };
   
@@ -400,6 +413,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
   const previewPoiLayersRef = useRef<{sourceId: string, layerId: string, name: string}[]>([]) // Track POI preview layers
   const previewBoundaryLayersRef = useRef<{sourceId: string, layerId: string, name: string, type: string}[]>([]) // Track boundary preview layers
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const lineLayerIds = useRef<string[]>([]) // Track line layers for MultiLineString geometries
   
   // State for dataset metadata (for display names and colors)
   const [datasetMetadata, setDatasetMetadata] = useState<Record<string, DataSourceMetadata>>({})
@@ -3261,15 +3275,109 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
       // GeoJSON Point format
       position = [coordinates.coordinates[0], coordinates.coordinates[1]];
     } else if (coordinates.type === 'MultiLineString' && Array.isArray(coordinates.coordinates)) {
-      // GeoJSON MultiLineString format - use the first point of the first line
-      if (coordinates.coordinates.length > 0 && 
-          Array.isArray(coordinates.coordinates[0]) && 
-          coordinates.coordinates[0].length > 0 && 
-          Array.isArray(coordinates.coordinates[0][0]) && 
-          coordinates.coordinates[0][0].length >= 2) {
-        // Use the first point of the first line segment
-        position = [coordinates.coordinates[0][0][0], coordinates.coordinates[0][0][1]];
-        console.log('Using first point from MultiLineString:', position);
+      // GeoJSON MultiLineString format - calculate centroid of all points
+      if (coordinates.coordinates.length > 0) {
+        // Collect all points from all line segments
+        const allPoints: [number, number][] = [];
+        coordinates.coordinates.forEach((lineString: number[][]) => {
+          if (Array.isArray(lineString)) {
+            lineString.forEach(point => {
+              if (Array.isArray(point) && point.length >= 2) {
+                allPoints.push([point[0], point[1]]);
+              }
+            });
+          }
+        });
+        
+        if (allPoints.length > 0) {
+          // Calculate the centroid of all points
+          const sumX = allPoints.reduce((sum, point) => sum + point[0], 0);
+          const sumY = allPoints.reduce((sum, point) => sum + point[1], 0);
+          position = [sumX / allPoints.length, sumY / allPoints.length];
+          console.log('Using centroid from MultiLineString:', position);
+          
+          // Add the actual line geometry to the map
+          if (map.current) {
+            const lineId = `line-${item.id}`;
+            
+            // Check if this line already exists
+            if (!map.current.getSource(lineId)) {
+              // Add the line source
+              map.current.addSource(lineId, {
+                type: 'geojson',
+                data: {
+                  type: 'Feature',
+                  properties: {
+                    id: item.id,
+                    datasetName: item.datasource_tablename
+                  },
+                  geometry: {
+                    type: 'MultiLineString',
+                    coordinates: coordinates.coordinates
+                  }
+                }
+              });
+              
+              // Add the line layer BEFORE the cluster layers to ensure it appears below the markers
+              // First, get the first symbol layer ID to insert our layer before it
+              const mapStyle = map.current.getStyle();
+              let beforeLayerId: string | undefined;
+              
+              // Find the first symbol layer or cluster layer to place our line below
+              if (mapStyle && mapStyle.layers) {
+                // Try to find cluster layers first
+                const clusterLayer = mapStyle.layers.find(layer => 
+                  layer.id === CLUSTER_LAYER_ID || 
+                  layer.id === CLUSTER_COUNT_LAYER_ID || 
+                  layer.id === UNCLUSTERED_POINT_LAYER_ID
+                );
+                
+                if (clusterLayer) {
+                  beforeLayerId = clusterLayer.id;
+                } else {
+                  // Fall back to any symbol layer
+                  const symbolLayer = mapStyle.layers.find(layer => layer.type === 'symbol');
+                  if (symbolLayer) {
+                    beforeLayerId = symbolLayer.id;
+                  }
+                }
+              }
+              
+              // Get the color for this dataset
+              const lineColor = getDatasetColor(
+                item.datasource_tablename,
+                item.event_type,
+                item.priority_level
+              );
+              
+              // Add the line layer with enhanced styling
+              map.current.addLayer({
+                id: lineId,
+                type: 'line',
+                source: lineId,
+                layout: {
+                  'line-join': 'round',
+                  'line-cap': 'round',
+                  'visibility': 'visible'
+                },
+                paint: {
+                  'line-color': lineColor,
+                  'line-width': 4, // Slightly thicker line
+                  'line-opacity': 0.8,
+                  'line-dasharray': [0, 2, 3], // Add a dash pattern for emphasis
+                  // Add a glow effect with line-blur
+                  'line-blur': 1
+                }
+              }, beforeLayerId); // Insert before cluster/symbol layers to keep it below markers
+              
+              // Store the line ID for later removal if needed
+              lineLayerIds.current.push(lineId);
+            }
+          }
+        } else {
+          console.error('No valid points found in MultiLineString:', coordinates);
+          return;
+        }
       } else {
         console.error('Invalid MultiLineString format:', coordinates);
         return;
@@ -3298,15 +3406,49 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
     // Get icon for the marker
     const icon = getMarkerIcon(item);
     
+    // Check if this is a MultiLineString geometry
+    const isMultiLineString = coordinates.type === 'MultiLineString';
+    
+    // For MultiLineString, adjust the color to make it distinguishable
+    // Create a slightly darker shade for MultiLineString markers
+    let markerColor = color;
+    if (isMultiLineString) {
+      // Darken the color by 15% for MultiLineString markers
+      try {
+        // If it's a hex color, darken it
+        if (color.startsWith('#')) {
+          // Convert hex to RGB
+          const r = parseInt(color.slice(1, 3), 16);
+          const g = parseInt(color.slice(3, 5), 16);
+          const b = parseInt(color.slice(5, 7), 16);
+          
+          // Darken by 15%
+          const darkenFactor = 0.85;
+          const darkerR = Math.floor(r * darkenFactor);
+          const darkerG = Math.floor(g * darkenFactor);
+          const darkerB = Math.floor(b * darkenFactor);
+          
+          // Convert back to hex
+          markerColor = `#${darkerR.toString(16).padStart(2, '0')}${darkerG.toString(16).padStart(2, '0')}${darkerB.toString(16).padStart(2, '0')}`;
+        }
+      } catch (e) {
+        console.error('Error darkening color:', e);
+        // Fall back to original color if there's an error
+        markerColor = color;
+      }
+    }
+    
     // Create a GeoJSON feature for this marker
     const markerFeature = {
       type: 'Feature',
       properties: {
         markerId: item.id,
-        color: color,
+        color: markerColor,
         icon: icon,
         popupContent: createPopupContent(item),
         datasetName: item.datasource_tablename,
+        // Add a special property for MultiLineString markers
+        isMultiLineString: isMultiLineString,
         // Include all relevant fields for display in the clustered list
         event_type: item.event_type,
         priority_level: item.priority_level,
@@ -3540,25 +3682,42 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
       paint: {
         // Use the color property from the feature
         'circle-color': ['get', 'color'],
-        'circle-radius': 10,
+        // Adjust radius based on whether it's a MultiLineString marker
+        'circle-radius': [
+          'case',
+          ['get', 'isMultiLineString'],
+          12,  // Larger radius for MultiLineString markers
+          10   // Normal radius for regular markers
+        ],
+        // Adjust stroke width based on marker type
         'circle-stroke-width': [
           'case',
+          ['all', ['get', 'multipleEvents'], ['get', 'isMultiLineString']],
+          5,  // Thickest stroke for multiple events on MultiLineString
           ['get', 'multipleEvents'],
           4,  // Thicker stroke for multiple events
+          ['get', 'isMultiLineString'],
+          3,  // Medium stroke for MultiLineString
           2   // Normal stroke for single events
         ],
-        // Add a distinct color for multiple events
+        // Add a distinct color for multiple events and MultiLineString
         'circle-stroke-color': [
           'case',
+          ['all', ['get', 'multipleEvents'], ['get', 'isMultiLineString']],
+          '#ffcc00',  // Yellow stroke for multiple events on MultiLineString
           ['get', 'multipleEvents'],
           '#ff3b30',  // Red stroke for multiple events
-          '#fff'      // White stroke for single events
+          ['get', 'isMultiLineString'],
+          '#000000',  // Black stroke for MultiLineString
+          '#ffffff'   // White stroke for regular markers
         ],
-        // Add a second outer stroke for multiple events
+        // Adjust opacity based on marker type
         'circle-stroke-opacity': [
           'case',
+          ['get', 'isMultiLineString'],
+          1.0,  // Full opacity for MultiLineString
           ['get', 'multipleEvents'],
-          0.9,  // More visible for multiple events
+          0.9,  // High opacity for multiple events
           0.8   // Normal opacity for single events
         ]
       }

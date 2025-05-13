@@ -193,8 +193,10 @@ export const buildQueryRequest = async (
           
           // Create a spatial expression for this road using ST_Intersects
           const roadExpression: QueryExpression = {
-            spatial_function: 'ST_Intersects',
-            value: geoJsonRoad
+            spatial_function: 'ST_DWithin',
+            value: geoJsonRoad,
+            distance: '30'
+
           };
           
           // Add to the spatial join condition
@@ -317,8 +319,9 @@ export const buildQueryRequest = async (
             
             // Create a spatial expression using the intersection coordinates
             const intersectionExpression: QueryExpression = {
-              spatial_function: 'ST_Intersects',
-              value: geoJsonIntersection
+              spatial_function: 'ST_DWithin',
+              value: geoJsonIntersection,
+              distance: '30'
             };
             
             // Add the intersection expression to the spatial join conditions
