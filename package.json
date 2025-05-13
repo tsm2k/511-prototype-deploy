@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
+    "@types/node": "^22",
     "@mapbox/mapbox-gl-draw": "^1.5.0",
     "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.4",
@@ -73,16 +74,15 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5",
     "vaul": "^0.9.6",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/mapbox-gl": "^3.4.1",
-    "@types/node": "^22",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "eslint": "9.22.0",
-    "eslint-config-next": "15.2.3",
-    "typescript": "^5"
+    "eslint-config-next": "15.2.3"
   }
 }
