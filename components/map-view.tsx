@@ -2851,7 +2851,8 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
         container: mapContainer.current,
         style: "mapbox://styles/mapbox/navigation-day-v1",
         center: [-86.1581, 39.7684],
-        zoom: 7
+        zoom: 7,
+        attributionControl: false // Disable default attribution to add custom one later
       });
       
       // Initialize draw control
@@ -2864,8 +2865,8 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
         defaultMode: 'simple_select'
       });
       
-      // Add draw control to the map
-      map.current.addControl(drawRef.current, 'top-right');
+      // We're not adding draw controls to the map UI as they're being removed
+      // The drawRef is still initialized for internal use but not displayed
 
       // Add event listeners to track map loading
       map.current.on('load', () => {
@@ -2938,7 +2939,25 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
         console.error('Map error:', e);
       });
 
-      map.current.addControl(new mapboxgl.NavigationControl(), "bottom-right");
+      // Add navigation controls to the right-center position to avoid overlapping with the legend
+      map.current.addControl(new mapboxgl.NavigationControl(), "right");
+      
+      // Add a custom, discreet attribution control positioned above the timeline slider
+      const attributionControl = new mapboxgl.AttributionControl({
+        compact: true,
+        customAttribution: 'Map data © Mapbox'
+      });
+      map.current.addControl(attributionControl, 'bottom-right');
+      
+      // Adjust the position of the attribution control after the map loads
+      map.current.once('load', () => {
+        // Find the attribution container and adjust its position
+        const attributionElement = document.querySelector('.mapboxgl-ctrl-bottom-right');
+        if (attributionElement) {
+          // Move it up to position above the timeline slider
+          (attributionElement as HTMLElement).style.bottom = '40px';
+        }
+      });
       
       // Create a ResizeObserver to watch for container size changes
       resizeObserverRef.current = new ResizeObserver(() => {
