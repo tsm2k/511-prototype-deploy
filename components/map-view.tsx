@@ -2865,8 +2865,20 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
         defaultMode: 'simple_select'
       });
       
-      // We're not adding draw controls to the map UI as they're being removed
-      // The drawRef is still initialized for internal use but not displayed
+      // Add draw control to the map but make it invisible
+      // This ensures the drawing functionality works but the UI controls aren't visible
+      map.current.addControl(drawRef.current, 'top-right');
+      
+      // Hide the MapboxDraw controls after they're added
+      setTimeout(() => {
+        const drawControlsElement = document.querySelector('.mapboxgl-ctrl-top-right .mapbox-gl-draw_ctrl-draw-btn');
+        if (drawControlsElement) {
+          const controlGroup = drawControlsElement.parentElement;
+          if (controlGroup) {
+            controlGroup.style.display = 'none';
+          }
+        }
+      }, 100);
 
       // Add event listeners to track map loading
       map.current.on('load', () => {
