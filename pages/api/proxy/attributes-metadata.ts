@@ -42,15 +42,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    console.log(`Fetching from: ${API_BASE_URL}/information-attributes-metadata/`);
     // Fetch data from the external API using axios with HTTPS agent
-    const response = await axios.get(`${API_BASE_URL}/datasources-metadata/`, {
+    const response = await axios.get(`${API_BASE_URL}/information-attributes-metadata/`, {
       httpsAgent,
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'Next.js Proxy Request'
       }
     });
-    
     // Store in cache
     cache[cacheKey] = {
       data: response.data,
@@ -59,19 +59,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // Set cache headers
     res.setHeader('X-Cache', 'MISS');
-    res.setHeader('Cache-Control', 'public, max-age=900'); // 15 minutes
+    res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutes
     
     // Return the data
     return res.status(200).json(response.data);
   } catch (error) {
-    console.error('Error fetching datasource metadata:', error);
-    
+    console.error('Error fetching attribute metadata:', error);
+
     // If we have stale cache data, return it rather than an error
     if (cache[cacheKey]) {
       res.setHeader('X-Cache', 'STALE');
       return res.status(200).json(cache[cacheKey].data);
     }
-    
-    return res.status(500).json({ message: 'Failed to fetch datasource metadata' });
+    // Provide more detailed error information
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorResponse = {
+      message: 'Failed to fetch attribute metadata',
+      error: errorMessage,
+      details: error instanceof Error && 'response' in error ? (error as any).response?.data : null
+    };
+    return res.status(500).json(errorResponse);
   }
 }

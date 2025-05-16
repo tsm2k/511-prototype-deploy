@@ -48,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         'User-Agent': 'Next.js Proxy Request'
       }
     });
-    
+
     // Store in cache
     cache[cacheKey] = {
       data: response.data,
@@ -63,13 +63,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(response.data);
   } catch (error) {
     console.error('Error fetching datasource metadata:', error);
-    
+
     // If we have stale cache data, return it rather than an error
     if (cache[cacheKey]) {
       res.setHeader('X-Cache', 'STALE');
       return res.status(200).json(cache[cacheKey].data);
     }
-    
     return res.status(500).json({ message: 'Failed to fetch datasource metadata' });
   }
 }
