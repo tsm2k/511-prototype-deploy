@@ -233,13 +233,46 @@ function IntegerDropdownMultiselect({
   );
 }
 
-// Cache for attribute values to avoid refetching
+// Cache for attribute values to avoid refetching - use sessionStorage for persistence across page refreshes
 const attributeValuesCache: Record<string, Record<string, string[]>> = {};
 const attributesCache: AttributeWithDataSource[] = [];
 const dataSourcesCache: DataSourceMetadata[] = [];
 const attributeValueCountsCache: Record<string, Record<string, number>> = {};
 const datasetDisplayNamesCache: Record<string, string> = {};
 let isDataLoaded = false;
+
+// Initialize caches from sessionStorage if available
+try {
+  if (typeof window !== 'undefined') {
+    const storedAttributes = sessionStorage.getItem('attributesCache');
+    const storedDataSources = sessionStorage.getItem('dataSourcesCache');
+    const storedValueCounts = sessionStorage.getItem('attributeValueCountsCache');
+    const storedDisplayNames = sessionStorage.getItem('datasetDisplayNamesCache');
+    
+    if (storedAttributes) {
+      attributesCache.push(...JSON.parse(storedAttributes));
+    }
+    
+    if (storedDataSources) {
+      dataSourcesCache.push(...JSON.parse(storedDataSources));
+    }
+    
+    if (storedValueCounts) {
+      Object.assign(attributeValueCountsCache, JSON.parse(storedValueCounts));
+    }
+    
+    if (storedDisplayNames) {
+      Object.assign(datasetDisplayNamesCache, JSON.parse(storedDisplayNames));
+    }
+    
+    // Mark as loaded if we have both attributes and data sources
+    if (attributesCache.length > 0 && dataSourcesCache.length > 0) {
+      isDataLoaded = true;
+    }
+  }
+} catch (e) {
+  console.error('Error loading cache from sessionStorage:', e);
+}
 
 export function DatasetAttributeFilters({
   selectedDatasets,
@@ -298,16 +331,43 @@ export function DatasetAttributeFilters({
         return;
       }
 
+      // Set initial loading state
       setIsLoading(true);
+      
       try {
-        // Step 1: Fetch all data sources
-        const sources = await fetchDataSourcesMetadata();
+        // Step 1: Fetch all data sources - use Promise.race to show UI faster
+        const sourcesPromise = fetchDataSourcesMetadata();
+        
+        // If we have cached data sources, use them immediately while waiting for fresh data
+        if (dataSourcesCache.length > 0) {
+          setDataSources(dataSourcesCache);
+        }
+        
+        // Wait for data sources
+        const sources = await sourcesPromise;
         setDataSources(sources);
         dataSourcesCache.length = 0;
         dataSourcesCache.push(...sources);
+        
+        // Save to sessionStorage for persistence
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('dataSourcesCache', JSON.stringify(sources));
+          } catch (e) {
+            console.warn('Failed to save dataSourcesCache to sessionStorage:', e);
+          }
+        }
 
-        // Step 2: Fetch all attributes metadata
-        const allAttributes = await fetchDatasetAttributesMetadata();
+        // Step 2: Fetch all attributes metadata - use Promise.race to show UI faster
+        const attributesPromise = fetchDatasetAttributesMetadata();
+        
+        // If we have cached attributes, use them immediately while waiting for fresh data
+        if (attributesCache.length > 0) {
+          processAttributes(attributesCache, selectedDatasets);
+        }
+        
+        // Wait for attributes
+        const allAttributes = await attributesPromise;
         
         // Map attributes to datasources
         const attributesWithSource: AttributeWithDataSource[] = [];
@@ -337,11 +397,20 @@ export function DatasetAttributeFilters({
         // Cache all attributes
         attributesCache.length = 0;
         attributesCache.push(...attributesWithSource);
+        
+        // Save to sessionStorage for persistence
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('attributesCache', JSON.stringify(attributesWithSource));
+          } catch (e) {
+            console.warn('Failed to save attributesCache to sessionStorage:', e);
+          }
+        }
 
         // Process attributes for selected datasets
         processAttributes(attributesWithSource, selectedDatasets);
 
-        // Step 3: Fetch all attribute values for all datasets
+        // Step 3: Fetch attribute values for selected datasets first
         // Group attributes by dataset for efficient value fetching
         const attrsByDataset: Record<string, string[]> = {};
         
@@ -353,8 +422,7 @@ export function DatasetAttributeFilters({
         }
         
         // Initialize value counts structure
-        const valueCounts: Record<string, Record<string, number>> = {};
-        const allValues: Record<string, Record<string, string[]>> = {};
+        const valueCounts: Record<string, Record<string, number>> = {...attributeValueCountsCache};
         
         // Only fetch values for the currently selected datasets to improve initial load time
         const selectedDatasetIds = selectedDatasets.filter(id => attrsByDataset[id]);
@@ -373,15 +441,25 @@ export function DatasetAttributeFilters({
         // Process selected datasets in parallel with a limit of 3 concurrent requests
         const fetchDatasetValues = async (datasetId: string) => {
           try {
-            // Fetch values for all attributes in this dataset at once
+            // Filter attributes to only fetch those not already in cache
+            const attributesToFetch = attrsByDataset[datasetId].filter(
+              attrName => !attributeValuesCache[datasetId]?.[attrName]
+            );
+            
+            // If all attributes are already cached, skip the fetch
+            if (attributesToFetch.length === 0) {
+              return true;
+            }
+            
+            // Fetch values for attributes not in cache
             const values = await fetchAttributeFilterValues(
               datasetId,
-              attrsByDataset[datasetId]
+              attributesToFetch
             );
             
             // Process the results
             if (values) {
-              for (const attrName of attrsByDataset[datasetId]) {
+              for (const attrName of attributesToFetch) {
                 if (values[attrName]) {
                   valueCounts[datasetId][attrName] = values[attrName].length;
                   attributeValuesCache[datasetId][attrName] = values[attrName];
@@ -406,6 +484,19 @@ export function DatasetAttributeFilters({
         // Process selected datasets first with higher concurrency
         await processBatch(selectedDatasetIds, 3);
         
+        // Update state with the values for selected datasets immediately
+        setAttributeValueCounts({...valueCounts});
+        
+        // Save to sessionStorage for persistence
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('attributeValueCountsCache', JSON.stringify(valueCounts));
+            sessionStorage.setItem('datasetDisplayNamesCache', JSON.stringify(datasetDisplayNamesCache));
+          } catch (e) {
+            console.warn('Failed to save caches to sessionStorage:', e);
+          }
+        }
+        
         // Then process remaining datasets in the background after a delay
         setTimeout(() => {
           const remainingDatasets = Object.keys(attrsByDataset)
@@ -414,21 +505,34 @@ export function DatasetAttributeFilters({
           processBatch(remainingDatasets, 2).then(() => {
             // Update the caches with any new values
             Object.assign(attributeValueCountsCache, valueCounts);
+            
+            // Save updated cache to sessionStorage
+            if (typeof window !== 'undefined') {
+              try {
+                sessionStorage.setItem('attributeValueCountsCache', JSON.stringify(attributeValueCountsCache));
+              } catch (e) {
+                console.warn('Failed to save attributeValueCountsCache to sessionStorage:', e);
+              }
+            }
           });
         }, 2000); // 2 second delay before loading non-selected datasets
           
-        // Store the results in state and cache
-        setAttributeValueCounts(valueCounts);
-        
         // Update caches
         Object.assign(attributeValueCountsCache, valueCounts);
-        Object.assign(attributeValuesCache, allValues);
         
         // Mark as loaded
         isDataLoaded = true;
       } catch (err) {
         console.error('Error loading data:', err);
         setError('Failed to load data. Please try again.');
+        
+        // If we have cached data, use it as fallback
+        if (attributesCache.length > 0) {
+          setDataSources(dataSourcesCache);
+          processAttributes(attributesCache, selectedDatasets);
+          setAttributeValueCounts(attributeValueCountsCache);
+          setError('Using cached data. Some information may be outdated.');
+        }
       } finally {
         setIsLoading(false);
       }

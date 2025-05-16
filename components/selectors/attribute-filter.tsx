@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Search, Check, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -39,30 +39,89 @@ export function AttributeFilter({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Cache key for storing values in sessionStorage
+  const cacheKey = useMemo(() => `attr_values_${tableName}_${attributeColumnName}`, [tableName, attributeColumnName]);
+  
+  // Ref to track if component is mounted
+  const isMounted = useRef(true);
+  
   // Fetch available values for this attribute
   useEffect(() => {
+    // Set mounted flag
+    isMounted.current = true;
+    
+    // Function to check cache and fetch values if needed
     const fetchValues = async () => {
       setIsLoading(true);
+      
+      // Try to get values from sessionStorage first
+      try {
+        if (typeof window !== 'undefined') {
+          const cachedValues = sessionStorage.getItem(cacheKey);
+          if (cachedValues) {
+            const parsedValues = JSON.parse(cachedValues);
+            if (Array.isArray(parsedValues) && parsedValues.length > 0) {
+              // Only update state if component is still mounted
+              if (isMounted.current) {
+                setAvailableValues(parsedValues);
+                setError(null);
+                setIsLoading(false);
+              }
+              return; // Exit early if we have cached values
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Error reading from sessionStorage:', e);
+        // Continue with API fetch if sessionStorage fails
+      }
+      
+      // If no cached values, fetch from API
       try {
         const values = await fetchAttributeFilterValues(tableName, [attributeColumnName]);
         if (values && values[attributeColumnName]) {
-          setAvailableValues(values[attributeColumnName]);
-          setError(null);
+          const fetchedValues = values[attributeColumnName];
+          
+          // Only update state if component is still mounted
+          if (isMounted.current) {
+            setAvailableValues(fetchedValues);
+            setError(null);
+          }
+          
+          // Cache the values in sessionStorage
+          try {
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem(cacheKey, JSON.stringify(fetchedValues));
+            }
+          } catch (e) {
+            console.warn('Error saving to sessionStorage:', e);
+          }
         } else {
-          setError("No values found for this attribute");
-          setAvailableValues([]);
+          if (isMounted.current) {
+            setError("No values found for this attribute");
+            setAvailableValues([]);
+          }
         }
       } catch (err) {
-        setError("Failed to fetch attribute values");
-        console.error(err);
-        setAvailableValues([]);
+        if (isMounted.current) {
+          setError("Failed to fetch attribute values");
+          console.error(err);
+          setAvailableValues([]);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted.current) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchValues();
-  }, [tableName, attributeColumnName]);
+    
+    // Cleanup function to prevent memory leaks
+    return () => {
+      isMounted.current = false;
+    };
+  }, [tableName, attributeColumnName, cacheKey]);
 
   // Sync with parent component's selectedValues
   useEffect(() => {
