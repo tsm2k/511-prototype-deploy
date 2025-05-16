@@ -2384,7 +2384,7 @@ export function LocationSelector({
                         onClick={() => setShowIntersectionPopup(false)} 
                         variant="outline"
                       >
-                        Cancel
+                        Keep Both
                       </Button>
                       <Button 
                         onClick={() => {
