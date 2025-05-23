@@ -3118,7 +3118,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
                   }
                 } else {
                   // Check for alternative coordinate fields
-                  const possibleCoordinateFields = ['coordinates', 'geometry', 'location', 'position', 'lat_long'];
+                  const possibleCoordinateFields = ['geo_json_coordinates', 'geometry', 'location', 'position', 'lat_long'];
                   
                   for (const field of possibleCoordinateFields) {
                     if (mapItem[field]) {
