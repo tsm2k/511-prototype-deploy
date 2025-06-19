@@ -48,7 +48,12 @@ export interface LocationFilter {
 export interface TimeFilter {
   startDate?: string;
   endDate?: string;
+  hours?: string[]; // Array of hours (0-23) to filter by
+  weekdays?: string[]; // Array of weekdays (Mon, Tue, Wed, Thu, Fri, Sat, Sun) to filter by
+  monthDays?: string[]; // Array of days of month (1-31, plus 'last') to filter by
+  holidays?: string[]; // Array of holiday IDs to filter by
   logic?: 'AND' | 'OR'; // Logical operator to apply between time filters
+  granularity?: string; // Data granularity (e.g., '1H', '1D', '30M')
 }
 
 export interface DatasetFilter {

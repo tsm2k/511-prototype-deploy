@@ -18,10 +18,48 @@ interface CacheItem {
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes in milliseconds
 const cache: Record<string, CacheItem> = {};
 
+// Interface for paginated API response
+interface PaginatedResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: any[];
+}
+
+/**
+ * Fetches all pages of data from a paginated API endpoint
+ * @param baseUrl The base URL of the API
+ * @param limit Optional limit parameter for each request
+ * @returns Promise with all results combined
+ */
+async function fetchAllPages(baseUrl: string, limit: number = 1000): Promise<any[]> {
+  let allResults: any[] = [];
+  let nextUrl: string | null = `${baseUrl}?limit=${limit}`;
+  
+  while (nextUrl) {
+    const response = await axios.get(nextUrl, {
+      httpsAgent,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Next.js Proxy Request'
+      }
+    });
+    
+    const data = response.data as PaginatedResponse;
+    allResults = [...allResults, ...data.results];
+    
+    // Update nextUrl for pagination
+    nextUrl = data.next;
+  }
+  
+  return allResults;
+}
+
 /**
  * Proxy API handler for fetching attribute metadata
  * This resolves CORS issues by fetching data from the server side
  * Implements caching to reduce API calls and improve loading times
+ * Handles pagination to ensure all attributes are fetched
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow GET requests
@@ -41,18 +79,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Fetch data from the external API using axios with HTTPS agent
-    const response = await axios.get(`${API_BASE_URL}/information-attributes-metadata/`, {
-      httpsAgent,
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Next.js Proxy Request'
-      }
-    });
+    // Fetch all pages of data from the external API
+    const allResults = await fetchAllPages(`${API_BASE_URL}/information-attributes-metadata`);
+    
+    // Create a response object that matches the expected format
+    const responseData = {
+      count: allResults.length,
+      next: null,
+      previous: null,
+      results: allResults
+    };
     
     // Store in cache
     cache[cacheKey] = {
-      data: response.data,
+      data: responseData,
       timestamp: now
     };
     
@@ -61,7 +101,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutes
     
     // Return the data
-    return res.status(200).json(response.data);
+    return res.status(200).json(responseData);
   } catch (error) {
     console.error('Error fetching attribute metadata:', error);
     

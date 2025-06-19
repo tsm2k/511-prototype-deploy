@@ -236,23 +236,23 @@ export function AttributeFilter({
       {attributeName && <Label className="font-medium">{attributeName}</Label>}
       
       {/* Search and Select/Deselect All */}
-      <div className="space-y-2 w-full">
-        <div className="relative w-full">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Find..."
-            className="pl-8 w-full"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        
-        {!isVerySmallSet && (
-          <div className="flex gap-2">
+      <div className="w-full">
+        <div className="flex gap-2 w-full items-center">
+          <div className="relative flex-grow">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Find..."
+              className="pl-8 w-full"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          
+          {!isVerySmallSet && (
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 text-xs h-8"
+              className="flex items-center gap-1 text-xs h-8 whitespace-nowrap"
               onClick={allSelected ? handleDeselectAll : handleSelectAll}
             >
               {allSelected ? (
@@ -265,10 +265,9 @@ export function AttributeFilter({
                 </>
               )}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-
       {/* Values List */}
       {isLoading ? (
         <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md">
@@ -279,10 +278,10 @@ export function AttributeFilter({
           {error}
         </div>
       ) : (
-        <ScrollArea className={`${getScrollAreaHeight(filteredValues.length)} border rounded-md p-2 w-full`}>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 w-full">
+        <ScrollArea className={`${getScrollAreaHeight(filteredValues.length)} border rounded-md p-1 w-full`}>
+          <div className="grid grid-cols-3 gap-x-2 gap-y-1 w-full">
             {filteredValues.length === 0 ? (
-              <div className="p-2 text-center text-muted-foreground col-span-2">
+              <div className="p-2 text-center text-muted-foreground col-span-3">
                 No values match your search
               </div>
             ) : (

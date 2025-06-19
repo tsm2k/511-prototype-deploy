@@ -13,12 +13,14 @@ interface DynamicDatasetSelectorProps {
   selectedDatasets: string[];
   onSelectedDatasetsChange: (datasets: string[]) => void;
   getSummaryRef?: { getSummary: (() => string) | null };
+  showOptionsDirectly?: boolean;
 }
 
 export function DynamicDatasetSelector({
   selectedDatasets,
   onSelectedDatasetsChange,
   getSummaryRef,
+  showOptionsDirectly = false,
 }: DynamicDatasetSelectorProps) {
   // State for the multi-select dropdown
   const [availableDatasets, setAvailableDatasets] = useState<ColorMultiSelectOption[]>([]);
@@ -146,7 +148,8 @@ export function DynamicDatasetSelector({
             options={availableDatasets}
             selected={selectedDatasets}
             onChange={handleDatasetChange}
-            placeholder="Select datasets..."
+            placeholder=""
+            initiallyOpen={showOptionsDirectly}
           />
         </>
       )}

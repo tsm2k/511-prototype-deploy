@@ -8,7 +8,6 @@ const API_BASE_URL = 'https://in-engr-tasi02.it.purdue.edu/api/511DataAnalytics'
 // Create HTTPS agent that trusts self-signed certificates
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-
 // In-memory cache
 interface CacheItem {
   data: any;
@@ -18,9 +17,11 @@ interface CacheItem {
 // Cache with 15-minute TTL
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes in milliseconds
 const cache: Record<string, CacheItem> = {};
+
 /**
  * Proxy API handler for fetching datasource metadata
  * This resolves CORS issues by fetching data from the server side
+ * Implements caching to reduce API calls and improve loading times
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow GET requests
@@ -48,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         'User-Agent': 'Next.js Proxy Request'
       }
     });
-
+    
     // Store in cache
     cache[cacheKey] = {
       data: response.data,
@@ -63,12 +64,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(response.data);
   } catch (error) {
     console.error('Error fetching datasource metadata:', error);
-
+    
     // If we have stale cache data, return it rather than an error
     if (cache[cacheKey]) {
       res.setHeader('X-Cache', 'STALE');
       return res.status(200).json(cache[cacheKey].data);
     }
+    
     return res.status(500).json({ message: 'Failed to fetch datasource metadata' });
   }
 }

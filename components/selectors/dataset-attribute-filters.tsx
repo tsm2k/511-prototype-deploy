@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/ui/info-tooltip"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { AlertCircle, X, Check, ChevronsUpDown } from "lucide-react"
+import { AlertCircle, X, Check, ChevronsUpDown, ChevronUp, ChevronDown, Filter as FilterIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AttributeFilter } from "@/components/selectors/attribute-filter"
 import { AttributeRangeFilter } from "@/components/selectors/attribute-range-filter"
@@ -30,6 +29,7 @@ interface DatasetAttributeFiltersProps {
   selectedFilters: Record<string, Record<string, string[]>>;
   onSelectedDatasetsChange?: (datasets: string[]) => void;
   timeframeSelections?: TimeframeSelection[];
+  activeDataset?: string | null;
 }
 
 // Extended attribute interface to include datasource information
@@ -279,22 +279,25 @@ export function DatasetAttributeFilters({
   onFilterChange,
   selectedFilters,
   onSelectedDatasetsChange,
-  timeframeSelections = []
+  timeframeSelections = [],
+  activeDataset
 }: DatasetAttributeFiltersProps) {
   const [attributes, setAttributes] = useState<AttributeWithDataSource[]>([]);
   const [dataSources, setDataSources] = useState<DataSourceMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string | null>(activeDataset || null);
   const [attributeValueCounts, setAttributeValueCounts] = useState<Record<string, Record<string, number>>>({});
   const [datasetDisplayNames, setDatasetDisplayNames] = useState<Record<string, string>>({}); // Map dataset IDs to display names
   const [allAttributeValues, setAllAttributeValues] = useState<Record<string, Record<string, string[]>>>({});
+  const [isAttributeFiltersOpen, setIsAttributeFiltersOpen] = useState(true); // Control visibility of attribute filters section
+  const [secondaryFiltersOpen, setSecondaryFiltersOpen] = useState<Record<string, boolean>>({}); // Track open/closed state of secondary filters by dataset
 
   // Process attributes for selected datasets
   const processAttributes = useCallback((attributesWithSource: AttributeWithDataSource[], selectedDatasets: string[]) => {
-    // Filter attributes for selected datasets
+    // Filter attributes for selected datasets and exclude those with attribute_ui_priority = 11
     const filteredAttributes = attributesWithSource.filter(attr => 
-      selectedDatasets.includes(attr.datasource_tablename)
+      selectedDatasets.includes(attr.datasource_tablename) && attr.attribute_ui_priority !== 11
     );
     
     // Create a mapping of dataset IDs to their display names
@@ -315,9 +318,16 @@ export function DatasetAttributeFilters({
       setError(null);
     } else {
       setAttributes([]);
-      setError('No attributes found for selected datasets');
+      setError('No attributes found for selected dataset');
     }
   }, [activeTab, setActiveTab]);
+  
+  // Update active tab when activeDataset prop changes
+  useEffect(() => {
+    if (activeDataset && selectedDatasets.includes(activeDataset) && activeTab !== activeDataset) {
+      setActiveTab(activeDataset);
+    }
+  }, [activeDataset, selectedDatasets]);
 
   // Load all data asynchronously when the component mounts
   useEffect(() => {
@@ -331,43 +341,16 @@ export function DatasetAttributeFilters({
         return;
       }
 
-      // Set initial loading state
       setIsLoading(true);
-      
       try {
-        // Step 1: Fetch all data sources - use Promise.race to show UI faster
-        const sourcesPromise = fetchDataSourcesMetadata();
-        
-        // If we have cached data sources, use them immediately while waiting for fresh data
-        if (dataSourcesCache.length > 0) {
-          setDataSources(dataSourcesCache);
-        }
-        
-        // Wait for data sources
-        const sources = await sourcesPromise;
+        // Step 1: Fetch all data sources
+        const sources = await fetchDataSourcesMetadata();
         setDataSources(sources);
         dataSourcesCache.length = 0;
         dataSourcesCache.push(...sources);
-        
-        // Save to sessionStorage for persistence
-        if (typeof window !== 'undefined') {
-          try {
-            sessionStorage.setItem('dataSourcesCache', JSON.stringify(sources));
-          } catch (e) {
-            console.warn('Failed to save dataSourcesCache to sessionStorage:', e);
-          }
-        }
 
-        // Step 2: Fetch all attributes metadata - use Promise.race to show UI faster
-        const attributesPromise = fetchDatasetAttributesMetadata();
-        
-        // If we have cached attributes, use them immediately while waiting for fresh data
-        if (attributesCache.length > 0) {
-          processAttributes(attributesCache, selectedDatasets);
-        }
-        
-        // Wait for attributes
-        const allAttributes = await attributesPromise;
+        // Step 2: Fetch all attributes metadata
+        const allAttributes = await fetchDatasetAttributesMetadata();
         
         // Map attributes to datasources
         const attributesWithSource: AttributeWithDataSource[] = [];
@@ -385,32 +368,25 @@ export function DatasetAttributeFilters({
           });
           
           if (datasource) {
-            attributesWithSource.push({
-              ...attr,
-              datasource_name: datasource.datasource_name,
-              datasource_tablename: datasource.datasource_tablename,
-              attribute_ui_priority: attr.attribute_ui_priority || 5 // Default to 5 if not provided
-            });
+            // Only add attributes that don't have attribute_ui_priority = 11
+            if (attr.attribute_ui_priority !== 11) {
+              attributesWithSource.push({
+                ...attr,
+                datasource_name: datasource.datasource_name,
+                datasource_tablename: datasource.datasource_tablename,
+                attribute_ui_priority: attr.attribute_ui_priority || 5 // Default to 5 if not provided
+              });
+            }
           }
         }
-
         // Cache all attributes
         attributesCache.length = 0;
         attributesCache.push(...attributesWithSource);
-        
-        // Save to sessionStorage for persistence
-        if (typeof window !== 'undefined') {
-          try {
-            sessionStorage.setItem('attributesCache', JSON.stringify(attributesWithSource));
-          } catch (e) {
-            console.warn('Failed to save attributesCache to sessionStorage:', e);
-          }
-        }
 
-        // Process attributes for selected datasets
+        // Process attributes for selected datasets (excluding those with attribute_ui_priority = 11)
         processAttributes(attributesWithSource, selectedDatasets);
 
-        // Step 3: Fetch attribute values for selected datasets first
+        // Step 3: Fetch all attribute values for all datasets
         // Group attributes by dataset for efficient value fetching
         const attrsByDataset: Record<string, string[]> = {};
         
@@ -422,7 +398,8 @@ export function DatasetAttributeFilters({
         }
         
         // Initialize value counts structure
-        const valueCounts: Record<string, Record<string, number>> = {...attributeValueCountsCache};
+        const valueCounts: Record<string, Record<string, number>> = {};
+        const allValues: Record<string, Record<string, string[]>> = {};
         
         // Only fetch values for the currently selected datasets to improve initial load time
         const selectedDatasetIds = selectedDatasets.filter(id => attrsByDataset[id]);
@@ -441,25 +418,26 @@ export function DatasetAttributeFilters({
         // Process selected datasets in parallel with a limit of 3 concurrent requests
         const fetchDatasetValues = async (datasetId: string) => {
           try {
-            // Filter attributes to only fetch those not already in cache
-            const attributesToFetch = attrsByDataset[datasetId].filter(
-              attrName => !attributeValuesCache[datasetId]?.[attrName]
-            );
+            // For traffic_speed_info table, only request data_density and origin_datasource_id to avoid 504 errors
+            let columnsToFetch = attrsByDataset[datasetId];
             
-            // If all attributes are already cached, skip the fetch
-            if (attributesToFetch.length === 0) {
-              return true;
+            if (datasetId === 'traffic_speed_info') {
+              // Filter to only include data_density and origin_datasource_id if they exist in the requested columns
+              columnsToFetch = columnsToFetch.filter(col => 
+                col === 'data_density'
+              );
+              console.log(`Optimizing traffic_speed_info request to only fetch: ${columnsToFetch.join(', ')}`);
             }
             
-            // Fetch values for attributes not in cache
+            // Fetch values for attributes in this dataset
             const values = await fetchAttributeFilterValues(
               datasetId,
-              attributesToFetch
+              columnsToFetch
             );
             
             // Process the results
             if (values) {
-              for (const attrName of attributesToFetch) {
+              for (const attrName of attrsByDataset[datasetId]) {
                 if (values[attrName]) {
                   valueCounts[datasetId][attrName] = values[attrName].length;
                   attributeValuesCache[datasetId][attrName] = values[attrName];
@@ -484,19 +462,6 @@ export function DatasetAttributeFilters({
         // Process selected datasets first with higher concurrency
         await processBatch(selectedDatasetIds, 3);
         
-        // Update state with the values for selected datasets immediately
-        setAttributeValueCounts({...valueCounts});
-        
-        // Save to sessionStorage for persistence
-        if (typeof window !== 'undefined') {
-          try {
-            sessionStorage.setItem('attributeValueCountsCache', JSON.stringify(valueCounts));
-            sessionStorage.setItem('datasetDisplayNamesCache', JSON.stringify(datasetDisplayNamesCache));
-          } catch (e) {
-            console.warn('Failed to save caches to sessionStorage:', e);
-          }
-        }
-        
         // Then process remaining datasets in the background after a delay
         setTimeout(() => {
           const remainingDatasets = Object.keys(attrsByDataset)
@@ -505,34 +470,21 @@ export function DatasetAttributeFilters({
           processBatch(remainingDatasets, 2).then(() => {
             // Update the caches with any new values
             Object.assign(attributeValueCountsCache, valueCounts);
-            
-            // Save updated cache to sessionStorage
-            if (typeof window !== 'undefined') {
-              try {
-                sessionStorage.setItem('attributeValueCountsCache', JSON.stringify(attributeValueCountsCache));
-              } catch (e) {
-                console.warn('Failed to save attributeValueCountsCache to sessionStorage:', e);
-              }
-            }
           });
         }, 2000); // 2 second delay before loading non-selected datasets
           
+        // Store the results in state and cache
+        setAttributeValueCounts(valueCounts);
+        
         // Update caches
         Object.assign(attributeValueCountsCache, valueCounts);
+        Object.assign(attributeValuesCache, allValues);
         
         // Mark as loaded
         isDataLoaded = true;
       } catch (err) {
         console.error('Error loading data:', err);
         setError('Failed to load data. Please try again.');
-        
-        // If we have cached data, use it as fallback
-        if (attributesCache.length > 0) {
-          setDataSources(dataSourcesCache);
-          processAttributes(attributesCache, selectedDatasets);
-          setAttributeValueCounts(attributeValueCountsCache);
-          setError('Using cached data. Some information may be outdated.');
-        }
       } finally {
         setIsLoading(false);
       }
@@ -563,159 +515,161 @@ export function DatasetAttributeFilters({
     onFilterChange(datasetId, attributeName, values);
   };
 
+  // Toggle attribute filters
+  const toggleAttributeFilters = () => {
+    setIsAttributeFiltersOpen(!isAttributeFiltersOpen);
+  };
+
+  // Toggle secondary filters for a dataset
+  const toggleSecondaryFilters = (datasetId: string) => {
+    setSecondaryFiltersOpen(prevState => ({ ...prevState, [datasetId]: !prevState[datasetId] }));
+  };
+
+  // Get summary of selected attribute filters
+  const getAttributeFilterSummary = () => {
+    // Count total number of filters applied
+    let totalFiltersApplied = 0;
+    let datasetsWithFilters = 0;
+    
+    Object.keys(selectedFilters).forEach(datasetId => {
+      const datasetFilters = selectedFilters[datasetId];
+      const filterCount = Object.values(datasetFilters).filter(values => values.length > 0).length;
+      
+      if (filterCount > 0) {
+        totalFiltersApplied += filterCount;
+        datasetsWithFilters++;
+      }
+    });
+    
+    if (totalFiltersApplied === 0) {
+      return "No filters applied";
+    }
+    
+    return `${totalFiltersApplied} filter${totalFiltersApplied !== 1 ? 's' : ''} applied across ${datasetsWithFilters} dataset${datasetsWithFilters !== 1 ? 's' : ''}`;
+  };
+
   if (selectedDatasets.length === 0) {
     return null;
   }
 
   return (
-    <Card className="mt-4">
-      <CardContent className="pt-4">
+    <div className="w-full">
+      <div className="p-1">
         {isLoading ? (
           <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md">
             Loading dataset attributes...
           </div>
         ) : error ? (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+          <Alert className="border-yellow-500 bg-yellow-100 text-yellow-800">
+            <AlertCircle className="h-4 w-4 text-yellow-700" />
             <AlertDescription>
-              {error}. Please try refreshing the page or contact support if the issue persists.
+              {error}
             </AlertDescription>
           </Alert>
         ) : (
-          <Tabs 
-            value={activeTab || undefined} 
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <TabsList className="w-full flex overflow-x-auto mb-4">
-              {selectedDatasets.map((datasetId) => (
-                <TabsTrigger 
-                  key={datasetId} 
-                  value={datasetId}
-                  className="flex-shrink-0 flex items-center gap-1 relative pr-7"
-                >
-                  {datasetDisplayNames[datasetId] || datasetId}
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    className="absolute right-1 rounded-full p-1 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent tab selection when clicking close
-                      // Find the dataset in the selectedDatasets array and remove it
-                      const updatedDatasets = selectedDatasets.filter(id => id !== datasetId);
-                      
-                      // Update active tab if the closed tab was active
-                      if (activeTab === datasetId && updatedDatasets.length > 0) {
-                        setActiveTab(updatedDatasets[0]);
-                      } else if (updatedDatasets.length === 0) {
-                        setActiveTab(null);
-                      }
-                      
-                      // Notify parent component about dataset removal
-                      if (onSelectedDatasetsChange) {
-                        onSelectedDatasetsChange(updatedDatasets);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        // Find the dataset in the selectedDatasets array and remove it
-                        const updatedDatasets = selectedDatasets.filter(id => id !== datasetId);
-                        
-                        // Update active tab if the closed tab was active
-                        if (activeTab === datasetId && updatedDatasets.length > 0) {
-                          setActiveTab(updatedDatasets[0]);
-                        } else if (updatedDatasets.length === 0) {
-                          setActiveTab(null);
-                        }
-                        
-                        // Notify parent component about dataset removal
-                        if (onSelectedDatasetsChange) {
-                          onSelectedDatasetsChange(updatedDatasets);
-                        }
-                      }
-                    }}
-                    aria-label={`Remove ${datasetId} dataset`}
-                  >
-                    <X className="h-3 w-3" />
-                  </div>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            
-            {selectedDatasets.map((datasetId) => (
-              <TabsContent key={datasetId} value={datasetId} className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-4 w-full">
-                  {/* <div className="flex items-center gap-2">
-                    <h4 className="text-base font-medium text-gray-800">Filter Options</h4>
-                  </div> */}
-                  
-                  {attributesByDataset[datasetId]?.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      {/* <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="text-sm"
-                        onClick={async () => {
-                          // Select all values for all attributes in this dataset
-                          for (const attribute of attributesByDataset[datasetId]) {
-                            try {
-                              // Fetch all available values for this attribute
-                              const values = await fetchAttributeFilterValues(
-                                attribute.datasource_tablename,
-                                [attribute.attribute_column_name]
-                              );
-                              
-                              // If values are available, select them all
-                              if (values && values[attribute.attribute_column_name]) {
-                                onFilterChange(
-                                  datasetId, 
-                                  attribute.attribute_column_name, 
-                                  values[attribute.attribute_column_name]
-                                );
-                              }
-                            } catch (err) {
-                              console.error(`Error selecting all values for ${attribute.attribute_ui_name}:`, err);
-                            }
-                          }
-                        }}
-                      >
-                        Select All Attributes
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="text-sm"
-                        onClick={() => {
-                          // Deselect all values for all attributes in this dataset
-                          const updatedFilters = { ...selectedFilters };
-                          if (updatedFilters[datasetId]) {
-                            attributesByDataset[datasetId].forEach(attribute => {
-                              if (updatedFilters[datasetId][attribute.attribute_column_name]) {
-                                // Clear the selected values
-                                onFilterChange(datasetId, attribute.attribute_column_name, []);
-                              }
-                            });
-                          }
-                        }}
-                      >
-                        Deselect All
-                      </Button> */}
-                    </div>
-                  )}
+          <div className="w-full">
+            {/* Dataset Content - directly show the active dataset's filters */}
+            {activeTab && attributesByDataset[activeTab]?.length > 0 ? (
+              <div className="space-y-3 w-full">
+                {/* Primary Filters (Priority 1-4) */}
+                <div className="grid grid-cols-1 gap-3 w-full flex-grow">
+                  {attributesByDataset[activeTab]
+                    .filter(attribute => 
+                      attribute.attribute_ui_priority >= 1 && 
+                      attribute.attribute_ui_priority <= 4
+                    )
+                    .sort((a, b) => a.attribute_ui_priority - b.attribute_ui_priority)
+                    .map((attribute) => (
+                      <div key={`${attribute.attribute_column_name}-${attribute.attribute_ui_name}`} className="space-y-1 w-full">
+                        <div className="flex flex-col w-full">
+                          <div className="flex items-center gap-1 mb-1">
+                            <Label className="font-sm">{attribute.attribute_ui_name}</Label>
+                            {attribute.attribute_category_description && (
+                              <InfoTooltip content={
+                                <div className="max-w-[250px]">
+                                  <p>{attribute.attribute_category_description}</p>
+                                </div>
+                              } />
+                            )}
+                          </div>
+                          {/* Handle different attribute types */}
+                          {attribute.attribute_logical_datatype_description === "Integer" ? (
+                            attributeValueCounts[activeTab]?.[attribute.attribute_column_name] > 8 ? (
+                              <AttributeRangeFilter
+                                attributeName={attribute.attribute_ui_name}
+                                attributeColumnName={attribute.attribute_column_name}
+                                tableName={attribute.datasource_tablename}
+                                onFilterChange={(columnName, values) => 
+                                  handleFilterChange(activeTab, columnName, values)
+                                }
+                                selectedValues={
+                                  selectedFilters[activeTab]?.[attribute.attribute_column_name] || []
+                                }
+                              />
+                            ) : (
+                              /* Dropdown multiselector for integer attributes with 8 or fewer values */
+                              <IntegerDropdownMultiselect
+                                attributeColumnName={attribute.attribute_column_name}
+                                tableName={attribute.datasource_tablename}
+                                onFilterChange={(columnName: string, values: string[]) => 
+                                  handleFilterChange(activeTab, columnName, values)
+                                }
+                                selectedValues={
+                                  selectedFilters[activeTab]?.[attribute.attribute_column_name] || []
+                                }
+                              />
+                            )
+                          ) : (
+                            /* Use DateAwareAttributeFilter for social_events event_name attribute */
+                            activeTab === "social_events" && attribute.attribute_column_name === "event_name" ? (
+                              <DateAwareAttributeFilter
+                                attributeName={attribute.attribute_ui_name}
+                                attributeColumnName={attribute.attribute_column_name}
+                                tableName={attribute.datasource_tablename}
+                                onFilterChange={(columnName, values) => 
+                                  handleFilterChange(activeTab, columnName, values)
+                                }
+                                selectedValues={
+                                  selectedFilters[activeTab]?.[attribute.attribute_column_name] || []
+                                }
+                                timeframeSelections={timeframeSelections}
+                                dateField="date_start"
+                              />
+                            ) : (
+                              <AttributeFilter
+                                attributeColumnName={attribute.attribute_column_name}
+                                tableName={attribute.datasource_tablename}
+                                onFilterChange={(columnName, values) => 
+                                  handleFilterChange(activeTab, columnName, values)
+                                }
+                                selectedValues={
+                                  selectedFilters[activeTab]?.[attribute.attribute_column_name] || []
+                                }
+                              />
+                            )
+                          )}
+                        </div>
+                      </div>
+                    ))}
                 </div>
-
-                {attributesByDataset[datasetId]?.length > 0 ? (
-                    <div className="space-y-6 w-full mt-2">
-                      {/* Primary Filters (Priority 1-4) */}
-                      <div className="grid grid-cols-1 gap-6 w-full flex-grow">
-                        {attributesByDataset[datasetId]
-                          .filter(attribute => 
-                            attribute.attribute_ui_priority >= 1 && 
-                            attribute.attribute_ui_priority <= 4
-                          )
+                
+                {/* Secondary Filters (Priority 5+) - Collapsible */}
+                {attributesByDataset[activeTab].some(attr => attr.attribute_ui_priority >= 5) && (
+                  <div className="mt-6">
+                    <div 
+                      className="flex items-center justify-between cursor-pointer p-2 border rounded-md bg-gray-50 hover:bg-gray-100"
+                      onClick={() => toggleSecondaryFilters(activeTab)}
+                    >
+                      <span className="font-medium">Additional Filters</span>
+                      {secondaryFiltersOpen[activeTab] ? 
+                        <ChevronUp className="h-4 w-4" /> : 
+                        <ChevronDown className="h-4 w-4" />}
+                    </div>
+                    
+                    {secondaryFiltersOpen[activeTab] && (
+                      <div className="mt-4 grid grid-cols-1 gap-6 w-full">
+                        {attributesByDataset[activeTab]
+                          .filter(attribute => attribute.attribute_ui_priority >= 5 && attribute.attribute_ui_priority !== 11)
                           .sort((a, b) => a.attribute_ui_priority - b.attribute_ui_priority)
                           .map((attribute) => (
                             <div key={`${attribute.attribute_column_name}-${attribute.attribute_ui_name}`} className="space-y-1 w-full">
@@ -732,158 +686,64 @@ export function DatasetAttributeFilters({
                                 </div>
                                 {/* Handle different attribute types */}
                                 {attribute.attribute_logical_datatype_description === "Integer" ? (
-                                  attributeValueCounts[datasetId]?.[attribute.attribute_column_name] > 8 ? (
+                                  attributeValueCounts[activeTab]?.[attribute.attribute_column_name] > 8 ? (
                                     <AttributeRangeFilter
                                       attributeName={attribute.attribute_ui_name}
                                       attributeColumnName={attribute.attribute_column_name}
                                       tableName={attribute.datasource_tablename}
                                       onFilterChange={(columnName, values) => 
-                                        handleFilterChange(datasetId, columnName, values)
+                                        handleFilterChange(activeTab, columnName, values)
                                       }
                                       selectedValues={
-                                        selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                        selectedFilters[activeTab]?.[attribute.attribute_column_name] || []
                                       }
                                     />
                                   ) : (
-                                    /* Dropdown multiselector for integer attributes with 8 or fewer values */
                                     <IntegerDropdownMultiselect
                                       attributeColumnName={attribute.attribute_column_name}
                                       tableName={attribute.datasource_tablename}
                                       onFilterChange={(columnName: string, values: string[]) => 
-                                        handleFilterChange(datasetId, columnName, values)
+                                        handleFilterChange(activeTab, columnName, values)
                                       }
                                       selectedValues={
-                                        selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
+                                        selectedFilters[activeTab]?.[attribute.attribute_column_name] || []
                                       }
                                     />
                                   )
                                 ) : (
-                                  /* Use DateAwareAttributeFilter for social_events event_name attribute */
-                                  datasetId === "social_events" && attribute.attribute_column_name === "event_name" ? (
-                                    <DateAwareAttributeFilter
-                                      attributeName={attribute.attribute_ui_name}
-                                      attributeColumnName={attribute.attribute_column_name}
-                                      tableName={attribute.datasource_tablename}
-                                      onFilterChange={(columnName, values) => 
-                                        handleFilterChange(datasetId, columnName, values)
-                                      }
-                                      selectedValues={
-                                        selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                      }
-                                      timeframeSelections={timeframeSelections}
-                                      dateField="date_start"
-                                    />
-                                  ) : (
-                                    <AttributeFilter
-                                      attributeColumnName={attribute.attribute_column_name}
-                                      tableName={attribute.datasource_tablename}
-                                      onFilterChange={(columnName, values) => 
-                                        handleFilterChange(datasetId, columnName, values)
-                                      }
-                                      selectedValues={
-                                        selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                      }
-                                    />
-                                  )
+                                  <AttributeFilter
+                                    attributeColumnName={attribute.attribute_column_name}
+                                    tableName={attribute.datasource_tablename}
+                                    onFilterChange={(columnName, values) => 
+                                      handleFilterChange(activeTab, columnName, values)
+                                    }
+                                    selectedValues={
+                                      selectedFilters[activeTab]?.[attribute.attribute_column_name] || []
+                                    }
+                                  />
                                 )}
-
                               </div>
                             </div>
                           ))}
                       </div>
-                      
-                      {/* Additional Filters (Priority 5-8) */}
-                      {attributesByDataset[datasetId]?.some(attr => 
-                        attr.attribute_ui_priority >= 5 && attr.attribute_ui_priority <= 8
-                      ) && (
-                        <div className="border rounded-md px-2 py-2 w-full">
-                          <details className="cursor-pointer">
-                            <summary className="font-medium text-sm mb-3">Additional Filters</summary>
-                            <div className="grid grid-cols-1 gap-6 mt-4 w-full flex-grow">
-                              {attributesByDataset[datasetId]
-                                .filter(attribute => 
-                                  attribute.attribute_ui_priority >= 5 && 
-                                  attribute.attribute_ui_priority <= 8
-                                )
-                                .sort((a, b) => a.attribute_ui_priority - b.attribute_ui_priority)
-                                .map((attribute) => (
-                                  <div key={`${attribute.attribute_column_name}-${attribute.attribute_ui_name}`} className="space-y-1 w-full">
-                                    <div className="flex flex-col w-full">
-                                      <div className="flex items-center gap-1 mb-1">
-                                        <Label className="font-sm">{attribute.attribute_ui_name}</Label>
-                                        {attribute.attribute_category_description && (
-                                          <InfoTooltip content={
-                                            <div className="max-w-[250px]">
-                                              <p>{attribute.attribute_category_description}</p>
-                                            </div>
-                                          } />
-                                        )}
-                                      </div>
-                                      {/* Check if attribute is an integer type with more than 8 values */}
-                                      {attribute.attribute_logical_datatype_description === "Integer" && 
-                                       attributeValueCounts[datasetId]?.[attribute.attribute_column_name] > 8 ? (
-                                        <AttributeRangeFilter
-                                          attributeName={attribute.attribute_ui_name}
-                                          attributeColumnName={attribute.attribute_column_name}
-                                          tableName={attribute.datasource_tablename}
-                                          onFilterChange={(columnName, values) => 
-                                            handleFilterChange(datasetId, columnName, values)
-                                          }
-                                          selectedValues={
-                                            selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                          }
-                                        />
-                                      ) : (
-                                        /* Use DateAwareAttributeFilter for social_events event_name attribute */
-                                        datasetId === "social_events" && attribute.attribute_column_name === "event_name" ? (
-                                          <DateAwareAttributeFilter
-                                            attributeName={attribute.attribute_ui_name}
-                                            attributeColumnName={attribute.attribute_column_name}
-                                            tableName={attribute.datasource_tablename}
-                                            onFilterChange={(columnName, values) => 
-                                              handleFilterChange(datasetId, columnName, values)
-                                            }
-                                            selectedValues={
-                                              selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                            }
-                                            timeframeSelections={timeframeSelections}
-                                            dateField="date_start"
-                                          />
-                                        ) : (
-                                          <AttributeFilter
-                                            attributeColumnName={attribute.attribute_column_name}
-                                            tableName={attribute.datasource_tablename}
-                                            onFilterChange={(columnName, values) => 
-                                              handleFilterChange(datasetId, columnName, values)
-                                            }
-                                            selectedValues={
-                                              selectedFilters[datasetId]?.[attribute.attribute_column_name] || []
-                                            }
-                                          />
-                                        )
-                                      )}
-
-                                    </div>
-                                  </div>
-                                ))}
-                            </div>
-                          </details>
-                        </div>
-                      )}
-                    </div>
-                ) : (
-                  <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md">
-                    No attributes available for this dataset
+                    )}
                   </div>
                 )}
-              </TabsContent>
-              
-            ))}
-          </Tabs>
-          
+              </div>
+            ) : activeTab ? (
+              <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md">
+                No attribute filters available for this dataset.
+              </div>
+            ) : (
+              <div className="p-4 text-center text-muted-foreground bg-gray-50 border rounded-md">
+                Please select a dataset to view available filters.
+              </div>
+            )}
+          </div>
         )}
-      </CardContent>
-      
-    </Card>
+      </div>
+    </div>
   );
-}
+};
+
+export default DatasetAttributeFilters;

@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { ChevronUp, ChevronDown, Info, AlertTriangle, Construction, Clock, Map as MapIcon } from "lucide-react"
 import { DataSourceMetadata, fetchDataSourcesMetadata } from "@/services/api"
 import { PointOfInterest } from "@/services/poi-service"
+import { useFilterContext } from "@/contexts/filter-context"
 mapboxgl.accessToken = "pk.eyJ1IjoidGFuYXkyayIsImEiOiJjbTJpYnltejYwbDgwMmpvbm1lNG16enV3In0.fwcdZ3I-cofnDOR9m1Hqng"
 
 // Unique source and layer IDs for roads, POI circles, boundaries, and intersections
@@ -77,6 +78,107 @@ const getBoundingBox = (coordinates: number[][]) => {
 };
 
 export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: any; onMarkerCountChange?: (count: number) => void }) {
+  // Get the filter context to access selected filters
+  const { filterState } = useFilterContext();
+  
+  // Helper function to check if an item passes the filter criteria
+  const passesFilterCriteria = (item: any, datasetName: string) => {
+    // If no filter state or no active filter, show all items
+    if (!filterState || !filterState.activeFilterId) {
+      return true;
+    }
+    
+    // Find the active filter
+    const activeFilter = filterState.filters?.find((f: any) => f.id === filterState.activeFilterId);
+    if (!activeFilter) {
+      return true;
+    }
+    
+    // Check if there are attribute filters for this dataset
+    const datasetFilters = activeFilter.attributeFilters?.[datasetName];
+    if (!datasetFilters) {
+      return true; // No filters for this dataset
+    }
+    
+    // Check if any attribute has active filters
+    let hasAnyActiveFilters = false;
+    
+    // First, check if there are any active filters at all for this dataset
+    for (const attributeName in datasetFilters) {
+      const selectedValues = datasetFilters[attributeName];
+      if (Array.isArray(selectedValues) && selectedValues.length > 0) {
+        hasAnyActiveFilters = true;
+        console.log(`Active filter found for ${datasetName}.${attributeName}:`, selectedValues);
+        break;
+      }
+    }
+    
+    // If no active filters, show all items
+    if (!hasAnyActiveFilters) {
+      return true;
+    }
+    
+    // Now check each attribute type that has filters
+    for (const attributeName in datasetFilters) {
+      const selectedValues = datasetFilters[attributeName];
+      
+      // Skip attributes with no selected values
+      if (!Array.isArray(selectedValues) || selectedValues.length === 0) {
+        continue;
+      }
+      
+      // We have an active filter for this attribute
+      // Get the item's value for this attribute
+      let itemValue = item[attributeName];
+      
+      // Special case for location-related attributes (location, city, district, route)
+      const locationAttributes = ['location', 'city', 'district', 'route'];
+      
+      // If this is a location-related attribute and the value is missing
+      if (locationAttributes.includes(attributeName) && (itemValue === undefined || itemValue === null)) {
+        // Try each of the other location attributes as fallbacks
+        for (const altAttribute of locationAttributes) {
+          if (altAttribute !== attributeName && item[altAttribute] !== undefined && item[altAttribute] !== null) {
+            itemValue = item[altAttribute];
+            console.log(`Using ${altAttribute} attribute instead of ${attributeName} for item:`, item.id || 'unknown');
+            break;
+          }
+        }
+      }
+      
+      // If the item doesn't have this attribute or any fallback attribute, it doesn't match
+      if (itemValue === undefined || itemValue === null) {
+        console.log(`Item filtered out - missing attribute ${attributeName} and fallbacks:`, item.id || 'unknown');
+        return false;
+      }
+      
+      // Check if the item's value is in the selected values
+      const valueMatches = selectedValues.some(selectedValue => {
+        // Handle case-insensitive comparison for string values
+        if (typeof itemValue === 'string' && typeof selectedValue === 'string') {
+          // Special handling for location attributes to ensure case-insensitive matching
+          if (locationAttributes.includes(attributeName)) {
+            console.log(`Comparing location values: '${itemValue.toLowerCase().trim()}' vs '${selectedValue.toLowerCase().trim()}'`);
+            return itemValue.toLowerCase().trim() === selectedValue.toLowerCase().trim();
+          }
+          return itemValue.toLowerCase().trim() === selectedValue.toLowerCase().trim();
+        }
+        return itemValue === selectedValue;
+      });
+      
+      if (valueMatches) {
+        console.log(`Item matched filter for ${attributeName}:`, item.id || 'unknown');
+      }
+      
+      // If this attribute doesn't match any selected value, filter out the item
+      if (!valueMatches) {
+        return false;
+      }
+    }
+    
+    // If we got here, the item passed all filter checks
+    return true;
+  };
   const { toast } = useToast();
   // Function to clear all markers - defined early to avoid reference errors
   const clearMarkers = () => {
@@ -2482,7 +2584,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
             'line-cap': 'round'
           },
           paint: {
-            'line-color': '#6a0dad', // Purple color for intersections
+            'line-color': '#FF6B6B', // Purple color for intersections
             'line-width': 6,
             'line-opacity': 0.8
           }
@@ -3001,7 +3103,169 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
     };
   }, []);
   
-  // Process and display map data when queryResults change
+  // Function to render traffic speed data as color-coded line segments
+  const renderTrafficSpeedLine = (item: MapData, coordinates: any) => {
+    if (!map.current || !coordinates.coordinates || !Array.isArray(coordinates.coordinates)) return;
+    
+    // Extract speed values from the item - check both direct properties and nested properties
+    // This handles both flattened and nested data structures from the API
+    const speed = item.speed !== undefined ? item.speed : (item.properties?.speed !== undefined ? item.properties.speed : null);
+    const referenceSpeed = item.reference_speed !== undefined ? item.reference_speed : (item.properties?.reference_speed !== undefined ? item.properties.reference_speed : null);
+    const historicalAverageSpeed = item.historical_average_speed !== undefined ? item.historical_average_speed : (item.properties?.historical_average_speed !== undefined ? item.properties.historical_average_speed : null);
+    
+    console.log('Traffic speed data:', { 
+      itemId: item.id, 
+      speed, 
+      referenceSpeed, 
+      historicalAverageSpeed,
+      hasDirectSpeed: item.speed !== undefined,
+      hasNestedSpeed: item.properties?.speed !== undefined
+    });
+    
+    // Determine the color based on speed values
+    let color = '#888888'; // Default gray for missing data
+    
+    if (speed !== null && speed !== undefined && referenceSpeed) {
+      // Calculate speed ratio compared to reference speed
+      const speedRatio = speed / referenceSpeed;
+      
+      if (speedRatio >= 0.9) {
+        color = '#4CAF50'; // Green for good speeds (≥90% of reference)
+      } else if (speedRatio >= 0.7) {
+        color = '#FFC107'; // Yellow for moderate speeds (70-90% of reference)
+      } else if (speedRatio >= 0.5) {
+        color = '#FF9800'; // Orange for slow speeds (50-70% of reference)
+      } else {
+        color = '#F44336'; // Red for very slow speeds (<50% of reference)
+      }
+    } else if (historicalAverageSpeed !== null && historicalAverageSpeed !== undefined && referenceSpeed) {
+      // Use historical average if current speed is not available
+      const speedRatio = historicalAverageSpeed / referenceSpeed;
+      
+      if (speedRatio >= 0.9) {
+        color = '#A5D6A7'; // Light green for historical good speeds
+      } else if (speedRatio >= 0.7) {
+        color = '#FFF59D'; // Light yellow for historical moderate speeds
+      } else if (speedRatio >= 0.5) {
+        color = '#FFCC80'; // Light orange for historical slow speeds
+      } else {
+        color = '#EF9A9A'; // Light red for historical very slow speeds
+      }
+    }
+    
+    // Create a line feature
+    const lineCoordinates = coordinates.coordinates.map((coord: number[]) => [
+      coord[0], coord[1]
+    ]);
+    
+    // Add the line to the map
+    const lineId = `traffic-speed-${item.id}`;
+    
+    // Remove existing line if it exists
+    if (map.current.getSource(lineId)) {
+      map.current.removeLayer(lineId);
+      map.current.removeSource(lineId);
+    }
+    
+    // Add the line source
+    map.current.addSource(lineId, {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {
+          // Include both direct properties and any nested properties
+          ...item,  // Include all direct properties from the item
+          speed: speed,
+          reference_speed: referenceSpeed,
+          historical_average_speed: historicalAverageSpeed,
+          id: item.id,
+          datasetId: item.datasource_tablename
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: lineCoordinates
+        }
+      }
+    });
+    
+    // Add the line layer
+    map.current.addLayer({
+      id: lineId,
+      type: 'line',
+      source: lineId,
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      },
+      paint: {
+        'line-color': color,
+        'line-width': 4,
+        'line-opacity': 0.8
+      }
+    });
+    
+    // Add click event for the line
+    map.current.on('click', lineId, (e) => {
+      if (e.features && e.features.length > 0) {
+        const feature = e.features[0];
+        const props = feature.properties || {};
+        
+        // Format speed information for popup
+        let speedInfo = '';
+        // Use the same logic as above to extract speed values from either direct or nested properties
+        const clickSpeed = speed !== null && speed !== undefined ? speed : props.speed;
+        const clickRefSpeed = referenceSpeed !== null && referenceSpeed !== undefined ? referenceSpeed : props.reference_speed;
+        const clickHistSpeed = historicalAverageSpeed !== null && historicalAverageSpeed !== undefined ? historicalAverageSpeed : props.historical_average_speed;
+        
+        if (clickSpeed !== null && clickSpeed !== undefined) {
+          speedInfo += `<p><strong>Current Speed:</strong> ${clickSpeed} mph</p>`;
+        }
+        if (clickRefSpeed !== null && clickRefSpeed !== undefined) {
+          speedInfo += `<p><strong>Reference Speed:</strong> ${clickRefSpeed} mph</p>`;
+        }
+        if (clickHistSpeed !== null && clickHistSpeed !== undefined) {
+          speedInfo += `<p><strong>Historical Average:</strong> ${clickHistSpeed} mph</p>`;
+        }
+        if (props.travel_time !== null && props.travel_time !== undefined) {
+          speedInfo += `<p><strong>Travel Time:</strong> ${props.travel_time} min</p>`;
+        }
+        
+        // Create popup content
+        const popupContent = `
+          <div class="popup-content">
+            <h3>${props.route || 'Traffic Speed Data'}</h3>
+            <p><strong>Date:</strong> ${props.date_start ? new Date(props.date_start).toLocaleString() : 'N/A'}</p>
+            ${speedInfo}
+            <p><strong>County:</strong> ${props.county || 'N/A'}</p>
+            <p><strong>Direction:</strong> ${props.travel_direction || 'N/A'}</p>
+          </div>
+        `;
+        
+        // Show popup
+        if (map.current) {
+          new mapboxgl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(popupContent)
+            .addTo(map.current);
+        }
+      }
+    });
+    
+    // Change cursor to pointer when hovering over the line
+    map.current.on('mouseenter', lineId, () => {
+      if (map.current) {
+        map.current.getCanvas().style.cursor = 'pointer';
+      }
+    });
+    
+    map.current.on('mouseleave', lineId, () => {
+      if (map.current) {
+        map.current.getCanvas().style.cursor = '';
+      }
+    });
+  };
+  
+  // Process and display map data when queryResults change or filters change
   useEffect(() => {
     if (!map.current || !queryResults) {
       console.log('Map or query results not available', { map: !!map.current, queryResults: !!queryResults });
@@ -3009,6 +3273,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
     }
     
     console.log('Processing query results for map visualization');
+    console.log('Current filter state:', JSON.stringify(filterState, null, 2));
     
     // Clear existing markers
     clearMarkers();
@@ -3017,6 +3282,12 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
     setVisibleDatasets(new Set());
     // Also reset selected datasets
     setSelectedDatasets(new Set());
+    
+    // Log filter state for debugging
+    if (filterState && filterState.activeFilterId) {
+      const activeFilter = filterState.filters?.find((f: any) => f.id === filterState.activeFilterId);
+      console.log('Active filter:', activeFilter);
+    }
     
     // Log the structure of the query results to help with debugging
     console.log('Query results structure:', {
@@ -3066,6 +3337,15 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
             // Process each item in the dataset
             items.forEach((item: any) => {
               try {
+                // Check if this item passes the filter criteria
+                const passes = passesFilterCriteria(item, tableName);
+                if (!passes) {
+                  // Skip this item if it doesn't pass the filter
+                  // console.log(`Item filtered out: ${tableName} item with id ${item.id || 'unknown'}`);
+                  return;
+                }
+                // console.log(`Item passed filters: ${tableName} item with id ${item.id || 'unknown'}`);
+                
                 // Add the tableName to the item for reference
                 const mapItem: MapData = {
                   ...item,
@@ -3122,7 +3402,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
                   
                   for (const field of possibleCoordinateFields) {
                     if (mapItem[field]) {
-                      console.log(`Found alternative coordinate field: ${field}`, mapItem[field]);
+                      // console.log(`Found alternative coordinate field: ${field}`, mapItem[field]);
                       try {
                         let coordinates;
                         if (typeof mapItem[field] === 'string') {
@@ -3139,7 +3419,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
                     }
                   }
                   
-                  console.warn('Item missing coordinates:', mapItem);
+                  // console.warn('Item missing coordinates:', mapItem);
                 }
               } catch (error) {
                 console.error('Error processing map item:', error);
@@ -3183,6 +3463,11 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
         // Process each item in the dataset
         items.forEach((item: any) => {
           try {
+            // Check if this item passes the filter criteria
+            if (!passesFilterCriteria(item, tableName)) {
+              // Skip this item if it doesn't pass the filter
+              return;
+            }
             // Add the tableName to the item for reference
             const mapItem: MapData = {
               ...item,
@@ -3240,7 +3525,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
               
               for (const field of possibleCoordinateFields) {
                 if (mapItem[field]) {
-                  console.log(`Found alternative coordinate field: ${field}`, mapItem[field]);
+                  // console.log(`Found alternative coordinate field: ${field}`, mapItem[field]);
                   try {
                     let coordinates;
                     if (typeof mapItem[field] === 'string') {
@@ -3290,15 +3575,27 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
     } else {
       console.log('No markers to display on the map');
     }
-  }, [queryResults, visibleLayers]);
+  }, [queryResults, visibleLayers, JSON.stringify(filterState)]);
   
-  // Function to add a marker to the map
-  // Function to add a marker to the GeoJSON collection for clustering
-  const addMarkerToMap = (item: MapData, coordinates: any) => {
+  // Function to add a marker to the map or render line segments for traffic data
+  const addMarkerToMap = (item: MapData, providedCoordinates?: any) => {
     if (!map.current) return;
+
+    // Get the coordinates from provided parameter or item's geometry
+    const coordinates = providedCoordinates || item.geometry;
+    if (!coordinates) return;
     
-    console.log('Adding marker for item:', item.id, 'with coordinates:', coordinates);
+    console.log('Processing coordinates in addMarkerToMap:', coordinates);
+
+    // Check if coordinates are LineString format (for traffic speed data or any line-based data)
+    if (coordinates.type === 'LineString' && Array.isArray(coordinates.coordinates)) {
+      // For traffic speed data or any LineString geometry
+      console.log('Rendering LineString data for item:', item.id);
+      renderTrafficSpeedLine(item, coordinates);
+      return;
+    }
     
+    // For other datasets, continue with normal marker handling
     // Determine marker position based on geometry type or format
     let position: [number, number];
     
@@ -4532,6 +4829,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
     'variable_speed_limit_sign_info': '#F0E442', // Yellow
     'social_events': '#CC6677',       // Rose
     'weather_info': '#882255',        // Purple
+    'traffic_speed_info': '#44AA99', // Teal
     'default': '#999999'              // Gray
   };
   
@@ -4621,6 +4919,9 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
         
       case 'weather_info':
         return '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.2A4.5 4.5 0 0 0 17.5 8h-1.8A7 7 0 1 0 4 14.9"></path><path d="M12 16v6"></path></svg>';
+
+      case 'traffic_speed_info':
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9"></path><path d="M12 12l4-4"></path><circle cx="12" cy="12" r="1"></circle></svg>';
         
       default:
         return '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
@@ -4726,16 +5027,18 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
       time: string[];
       details: string[];
     } = {
-      primary: ['event_type', 'event_name', 'priority_level', 'event_status', 'device_label'],
-      location: ['route', 'start_mile_marker', 'end_mile_marker', 'city', 'county', 'district', 'subdistrict', 'region'],
-      time: ['date_start', 'date_end', 'date_update', 'data_retrieval_timestamp'],
+      primary: ['event_type', 'event_name', 'priority_level', 'event_status', 'device_label', 'event_location_name'],
+      // location: ['route', 'start_mile_marker', 'end_mile_marker', 'city', 'county', 'district', 'subdistrict', 'region'],
+      location: ['route','city', 'county', 'district'],
+
+      time: ['date_start', 'date_end'],
       details: [] // Will hold all other fields
     };
     
     // Excluded properties that won't be shown
     const excludedProps = [
-      'id', 'datasource_metadata_id', 'datasource_tablename', 
-      'readable_coordinates', 'coordinates', 'geometry',
+      'id', 'datasource_metadata_id', 'datasource_tablename', 'data_retrieval_timestamp',
+      'readable_coordinates', 'coordinates', 'geo_json_coordinates','geometry', 'event_location_id',
       'origin_datasource_id' // Usually not meaningful to users
     ];
     
@@ -4753,25 +5056,28 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
     
     // Start with a styled container and header with scrollable content
     let content = `
-      <div class="popup-container" style="font-family: system-ui, -apple-system, sans-serif; width: 350px;">
+      <div class="popup-container" style="font-family: system-ui, -apple-system, sans-serif; width: 300px;">
         <style>
           /* Custom styles for the Mapbox popup close button */
           .mapboxgl-popup-close-button {
-            font-size: 22px !important;
+            font-size: 24px !important;
             font-weight: bold !important;
             color: #4a5568 !important;
-            right: 8px !important;
-            top: 8px !important;
-            padding: 4px 8px !important;
-            border-radius: 50% !important;
-            line-height: 22px !important;
-            width: 30px !important;
-            height: 30px !important;
+            right: 12px !important;
+            top: 14px !important;
+            padding: 0 !important;
+            border-radius: 4px !important;
+            line-height: 24px !important;
+            width: 24px !important;
+            height: 24px !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            background: rgba(237, 242, 247, 0.8) !important;
+            background: transparent !important;
             transition: all 0.2s ease !important;
+            text-align: center !important;
+            z-index: 20 !important;
+            transform: translateY(-50%) !important;
           }
           .mapboxgl-popup-close-button:hover {
             background: rgba(226, 232, 240, 1) !important;
@@ -4779,15 +5085,8 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
           }
           /* Make all popups consistent in size */
           .mapboxgl-popup-content {
-            width: 350px !important;
+            width: 320px !important;
             box-sizing: border-box !important;
-          }
-          /* Style for list popup */
-          .list-popup .mapboxgl-popup-content {
-            padding: 0 !important;
-          }
-          /* Style for detail popup */
-          .detail-popup .mapboxgl-popup-content {
             padding: 0 !important;
           }
           /* Fix for popup positioning */
@@ -4795,35 +5094,32 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
             will-change: transform;
             transition: transform 0.1s ease-out;
           }
-          /* Ensure back button is more visible */
-          .popup-header {
-            padding-left: 48px !important;
-            padding-top: 16px !important;
-          }
           .popup-container {
             display: flex;
             flex-direction: column;
-            max-height: 400px;
+            max-height: 360px;
             overflow: hidden;
           }
           .popup-header {
-            padding: 12px 16px;
+            padding: 6px 10px;
+            padding-right: 40px;
             background-color: #f8f9fa;
             border-bottom: 1px solid #e2e8f0;
             border-radius: 8px 8px 0 0;
             position: sticky;
             top: 0;
-            z-index: 10;
+            z-index: 5;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            height: 28px;
           }
           .popup-content {
-            padding: 16px;
+            padding: 8px 10px;
             overflow-y: auto;
-            max-height: 350px;
+            max-height: 310px;
             scrollbar-width: thin;
           }
           .popup-content::-webkit-scrollbar {
-            width: 6px;
+            width: 4px;
           }
           .popup-content::-webkit-scrollbar-track {
             background: #f1f1f1;
@@ -4839,39 +5135,57 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
           .section-title {
             font-weight: 600;
             color: #2d3748;
-            margin-bottom: 8px;
+            margin-bottom: 2px;
+            margin-top: 2px;
             display: flex;
             align-items: center;
-            font-size: 14px;
+            font-size: 13px;
           }
           .section-content {
-            margin-bottom: 16px;
-            padding-bottom: 12px;
+            margin-bottom: 4px;
+            padding-bottom: 4px;
             border-bottom: 1px solid #edf2f7;
           }
           .field-row {
             display: flex;
-            margin-bottom: 8px;
+            margin-bottom: 3px;
             align-items: flex-start;
           }
           .field-label {
-            width: 40%;
+            width: 35%;
             font-weight: 500;
             color: #4a5568;
-            font-size: 13px;
-            padding-right: 8px;
+            font-size: 11px;
+            padding-right: 4px;
           }
           .field-value {
-            width: 60%;
-            font-size: 13px;
+            width: 65%;
+            font-size: 11px;
             color: #1a202c;
             word-break: break-word;
+          }
+          .collapsible {
+            cursor: pointer;
+            user-select: none;
+          }
+          .collapsible:after {
+            content: ' ↓';
+            font-size: 10px;
+            color: #718096;
+          }
+          .collapsible.active:after {
+            content: ' ↑';
+          }
+          .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
           }
         </style>
         <div class="popup-header">
           <div style="display: flex; align-items: center;">
-            <div style="font-size: 24px; margin-right: 10px;">${datasetIcon}</div>
-            <div style="font-size: 18px; font-weight: bold; color: #2d3748;">${datasetDisplayName}</div>
+            <div style="font-size: 18px; margin-right: 6px;">${datasetIcon}</div>
+            <div style="font-size: 14px; font-weight: bold; color: #2d3748;">${datasetDisplayName}</div>
           </div>
         </div>
         <div class="popup-content">
@@ -4918,16 +5232,13 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
           <div class="field-row">
             <div class="field-label">${fieldIcon}${displayKey}:</div>
             <div class="field-value ${valueClass}">${formatValue(item[key])}</div>
-          </div>
-        `;
+          </div>`;
       }
     }
     
     if (hasPrimaryInfo) {
       content += `
-        <div class="section-content">
-          ${primaryContent}
-        </div>
+        <div class="section-content">${primaryContent}</div>
       `;
     }
     
@@ -4968,14 +5279,13 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
         <div class="field-row">
           <div class="field-label">📏 Mile Range:</div>
           <div class="field-value">${formatValue(item.start_mile_marker)} to ${formatValue(item.end_mile_marker)}</div>
-        </div>
-      `;
+        </div>`;
     }
     
     if (hasLocationInfo) {
       content += `
         <div class="section-content">
-          <div class="section-title">📍 Location Information</div>
+          <div class="section-title">📍 Location</div>
           ${locationContent}
         </div>
       `;
@@ -5011,15 +5321,17 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
     if (hasTimeInfo) {
       content += `
         <div class="section-content">
-          <div class="section-title">⏱️ Time Information</div>
+          <div class="section-title">⏱️ Time</div>
           ${timeContent}
         </div>
       `;
     }
     
-    // Add remaining details
+    // Add remaining details - collapsible
     if (categories.details.length > 0) {
-      content += `<div class="section-title">ℹ️ Additional Details</div>`;
+      content += `
+        <div class="section-title collapsible" onclick="this.classList.toggle('active'); const content = this.nextElementSibling; if(content.style.maxHeight) { content.style.maxHeight = null; } else { content.style.maxHeight = content.scrollHeight + 'px'; }">ℹ️ Additional Details</div>
+        <div class="collapsible-content">`;
       
       for (const key of categories.details) {
         // Format the key for display (convert snake_case to Title Case)
@@ -5032,9 +5344,10 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
           <div class="field-row">
             <div class="field-label">${displayKey}:</div>
             <div class="field-value">${formatValue(item[key])}</div>
-          </div>
-        `;
+          </div>`;
       }
+      
+      content += `</div>`;
     }
     
     content += '</div></div>';
@@ -5097,6 +5410,7 @@ export function MapView({ queryResults, onMarkerCountChange }: { queryResults?: 
                   case 'variable_speed_limit_sign_info': return 'Variable Speed Limit Signs';
                   case 'social_events': return 'Social Events';
                   case 'weather_info': return 'Weather Information';
+                  case 'traffic_speed_info': return 'Traffic Speed';
                   default: return tableName;
                 }
               })();
