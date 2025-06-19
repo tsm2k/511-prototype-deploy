@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Label } from "@/components/ui/label"
-import { fetchAttributeFilterValues } from "@/services/api"
+import { fetchAttributeFilterValues, fetchSocialEvents } from "@/services/api"
 import { format, parseISO, isWithinInterval } from "date-fns"
 import { TimeframeSelection } from "./timeline-selector"
 
@@ -40,30 +40,17 @@ function getScrollAreaHeight(valueCount: number): string {
 // Helper function to check if a date is within the selected date range
 function isDateInRange(dateStr: string, timeframeSelections: TimeframeSelection[]): boolean {
   if (!dateStr || !timeframeSelections || timeframeSelections.length === 0) {
-    console.log(`No date range check for: ${dateStr}`);
+    // console.log(`No date range check for: ${dateStr}`);
     return true;
   }
   
   try {
     // Parse the ISO date string from the API
     const eventDate = new Date(dateStr);
-    console.log(`Checking event date: ${dateStr} (${eventDate.toISOString()})`);
-    
+
     // Find date range selection
     const dateRangeSelection = timeframeSelections.find(s => s.type === "dateRange");
     if (dateRangeSelection && dateRangeSelection.type === "dateRange" && 'range' in dateRangeSelection) {
-      // Log the raw range values for debugging
-      console.log('Raw date range from selection:', {
-        start: dateRangeSelection.range.start,
-        end: dateRangeSelection.range.end,
-        startType: typeof dateRangeSelection.range.start,
-        endType: typeof dateRangeSelection.range.end,
-        startIsDate: dateRangeSelection.range.start instanceof Date,
-        endIsDate: dateRangeSelection.range.end instanceof Date
-      });
-      
-      // Get start and end dates from the selection
-      // Handle both Date objects and string dates
       let start: Date;
       let end: Date;
       
@@ -86,10 +73,7 @@ function isDateInRange(dateStr: string, timeframeSelections: TimeframeSelection[
           end = new Date(dateRangeSelection.range.end as any);
         }
         
-        console.log('Parsed date range:', {
-          start: start.toISOString(),
-          end: end.toISOString()
-        });
+
       } catch (parseError) {
         console.error('Error parsing date range:', parseError);
         return true; // If we can't parse the date range, consider all events in range
@@ -100,15 +84,12 @@ function isDateInRange(dateStr: string, timeframeSelections: TimeframeSelection[
       const startDateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
       const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
       
+      // Add one day to the end date to make it inclusive
+      endDateOnly.setDate(endDateOnly.getDate() + 1);
+      
       // Compare dates (inclusive range)
-      const isInRange = eventDateOnly >= startDateOnly && eventDateOnly <= endDateOnly;
-      
-      // Debug output
-      console.log(`Date comparison:\n` +
-                 `Event date: ${eventDateOnly.toISOString().split('T')[0]}\n` +
-                 `Range: ${startDateOnly.toISOString().split('T')[0]} to ${endDateOnly.toISOString().split('T')[0]}\n` +
-                 `In Range: ${isInRange}`);
-      
+      const isInRange = eventDateOnly >= startDateOnly && eventDateOnly < endDateOnly;
+
       return isInRange;
     } else {
       console.log('No valid date range selection found in timeframeSelections:', timeframeSelections);
@@ -124,6 +105,8 @@ function isDateInRange(dateStr: string, timeframeSelections: TimeframeSelection[
 interface EventData {
   event_name: string;
   date_start: string;
+  city?: string;
+  venue?: string;
 }
 
 export function DateAwareAttributeFilter({
@@ -150,55 +133,104 @@ export function DateAwareAttributeFilter({
     const fetchValues = async () => {
       setIsLoading(true);
       try {
-        // For social events, we need to fetch both event_name and date_start
-        const columnNames = tableName === "social_events" 
-          ? [attributeColumnName, dateField] 
-          : [attributeColumnName];
+        let values: Record<string, string[]>;
         
-        const values = await fetchAttributeFilterValues(tableName, columnNames);
+        // For social events, use the dedicated endpoint that maintains event name and date pairings
+        if (tableName === "social_events") {
+          values = await fetchSocialEvents();
+        } else {
+          // For other tables, use the regular attribute filter values endpoint
+          const columnNames = [attributeColumnName];
+          values = await fetchAttributeFilterValues(tableName, columnNames);
+        }
         
         if (values && values[attributeColumnName]) {
           // Store all values for filtering
           setAvailableValues(values[attributeColumnName]);
-          console.log(`Fetched ${values[attributeColumnName].length} values for ${attributeColumnName}`);
+          // console.log(`Fetched ${values[attributeColumnName].length} values for ${attributeColumnName}`);
           
-          // If we have date information, create event data objects
-          if (tableName === "social_events" && values[dateField]) {
-            console.log(`Creating event data with ${values[dateField].length} dates`);
-            const eventData: EventData[] = [];
-            for (let i = 0; i < values[attributeColumnName].length; i++) {
-              if (i < values[dateField].length) {
-                eventData.push({
-                  event_name: values[attributeColumnName][i],
-                  date_start: values[dateField][i]
-                });
+          // If we have social events data, process it
+          if (tableName === "social_events") {
+            // Check if we have the new response format with social_events array
+            if ('social_events' in values && Array.isArray(values.social_events)) {
+              // console.log(`Processing ${values.social_events.length} social events from new format`);
+              
+              // Group events by name to handle duplicates with different times
+              const eventGroups: Record<string, any[]> = {};
+              values.social_events.forEach((event: any) => {
+                if (!eventGroups[event.event_name]) {
+                  eventGroups[event.event_name] = [];
+                }
+                eventGroups[event.event_name].push(event);
+              });
+              
+              // Log events with multiple times
+              Object.entries(eventGroups).forEach(([name, events]) => {
+                if (events.length > 1) {
+                  console.log(`Event "${name}" has ${events.length} different times:`, 
+                    events.map(e => e.date_start));
+                }
+              });
+              
+              // Extract unique event names for the filter
+              const uniqueEventNames = Object.keys(eventGroups);
+              // console.log(`Found ${uniqueEventNames.length} unique event names out of ${values.social_events.length} total events`);
+              setAvailableValues(uniqueEventNames);
+              
+              // Create event data objects from the social_events array
+              // Keep all instances of each event to preserve different times
+              const newEventData: EventData[] = values.social_events.map((event: any) => ({
+                event_name: event.event_name,
+                date_start: event.date_start,
+                city: event.city,
+                venue: event.event_location_name
+              }));
+              
+              // console.log('Sample event data with city:', JSON.stringify(newEventData[0], null, 2));
+              setAllEventData(newEventData);
+            } 
+            // Fallback to old format if needed
+            else if (values[dateField]) {
+              // console.log(`Creating event data with ${values[dateField].length} dates (old format)`);
+              const oldEventData: EventData[] = [];
+              for (let i = 0; i < values[attributeColumnName].length; i++) {
+                if (i < values[dateField].length) {
+                  const cityValue = values.city && i < values.city.length ? values.city[i] : undefined;
+                  const venueValue = values.event_location_name && i < values.event_location_name.length ? values.event_location_name[i] : undefined;
+                  oldEventData.push({
+                    event_name: values[attributeColumnName][i],
+                    date_start: values[dateField][i],
+                    city: cityValue,
+                    venue: venueValue
+                  });
+                }
               }
+              setAllEventData(oldEventData);
             }
-            setAllEventData(eventData);
             
             // Debug the timeframe selections
             if (timeframeSelections && timeframeSelections.length > 0) {
               const dateRangeSelection = timeframeSelections.find(s => s.type === "dateRange");
               if (dateRangeSelection && dateRangeSelection.type === "dateRange") {
-                console.log('Using date range for filtering:', {
-                  start: new Date(dateRangeSelection.range.start).toISOString(),
-                  end: new Date(dateRangeSelection.range.end).toISOString()
-                });
+                // console.log('Using date range for filtering:', {
+                //   start: new Date(dateRangeSelection.range.start).toISOString(),
+                //   end: new Date(dateRangeSelection.range.end).toISOString()
+                // });
                 
                 // Pre-filter events based on date range
-                const inRangeEvents = eventData.filter(event => 
+                const inRangeEvents = allEventData.filter((event: EventData) => 
                   isDateInRange(event.date_start, timeframeSelections)
                 );
                 
-                console.log(`Found ${inRangeEvents.length} events within the selected date range`);
+                // console.log(`Found ${inRangeEvents.length} events within the selected date range`);
                 if (inRangeEvents.length > 0) {
-                  console.log('First 5 in-range events:', inRangeEvents.slice(0, 5).map(e => e.event_name));
+                  // console.log('First 5 in-range events:', inRangeEvents.slice(0, 5).map((e: EventData) => e.event_name));
                 }
               } else {
-                console.log('No dateRange selection found in timeframeSelections');
+                // console.log('No dateRange selection found in timeframeSelections');
               }
             } else {
-              console.log('No timeframe selections available for filtering');
+              // console.log('No timeframe selections available for filtering');
             }
           }
           
@@ -242,34 +274,34 @@ export function DateAwareAttributeFilter({
     // Log the actual timeframe selection objects for debugging
     if (timeframeSelections && timeframeSelections.length > 0) {
       timeframeSelections.forEach((selection, index) => {
-        console.log(`TimeframeSelection[${index}]:`, selection);
+        // console.log(`TimeframeSelection[${index}]:`, selection);
         if (selection.type === 'dateRange' && 'range' in selection) {
-          console.log(`  - Date range:`, {
-            start: selection.range.start instanceof Date ? 
-              selection.range.start.toISOString() : 
-              `Not a Date: ${JSON.stringify(selection.range.start)}`,
-            end: selection.range.end instanceof Date ? 
-              selection.range.end.toISOString() : 
-              `Not a Date: ${JSON.stringify(selection.range.end)}`
-          });
+          // console.log(`  - Date range:`, {
+          //   start: selection.range.start instanceof Date ? 
+          //     selection.range.start.toISOString() : 
+          //     `Not a Date: ${JSON.stringify(selection.range.start)}`,
+          //   end: selection.range.end instanceof Date ? 
+          //     selection.range.end.toISOString() : 
+          //     `Not a Date: ${JSON.stringify(selection.range.end)}`
+          // });
         }
       });
     } else {
-      console.log('No timeframe selections available');
+      // console.log('No timeframe selections available');
     }
     
     if (availableValues.length === 0) {
-      console.log('No available values to filter');
+      // console.log('No available values to filter');
       setFilteredValues([]);
       return;
     }
     
     // Debug all event data
     if (tableName === "social_events") {
-      console.log(`Filtering ${availableValues.length} events with ${allEventData.length} event data records`);
+      // console.log(`Filtering ${availableValues.length} events with ${allEventData.length} event data records`);
       // Log a few sample events for debugging
       if (allEventData.length > 0) {
-        console.log('Sample events:', allEventData.slice(0, 3));
+        // console.log('Sample events:', allEventData.slice(0, 3));
       }
     }
     
@@ -327,11 +359,21 @@ export function DateAwareAttributeFilter({
       }
     }
     
-    // If no valid timeframe selections were processed, use a default range
+    // If no valid timeframe selections were processed, use the current date from the UI
     if (processedTimeframeSelections.length === 0) {
+      // Get the current date and create a range for the current week
+      const today = new Date();
+      const startOfWeek = new Date(today);
+      const endOfWeek = new Date(today);
+      
+      // Set to start of current day
+      startOfWeek.setHours(0, 0, 0, 0);
+      // Set to end of current day
+      endOfWeek.setHours(23, 59, 59, 999);
+      
       const defaultRange: DateRange = {
-        start: new Date(2025, 4, 5), // May 5, 2025 (months are 0-indexed)
-        end: new Date(2025, 4, 12)   // May 12, 2025
+        start: startOfWeek,
+        end: endOfWeek
       };
       
       processedTimeframeSelections = [
@@ -341,7 +383,7 @@ export function DateAwareAttributeFilter({
         } as { type: "dateRange"; range: DateRange }
       ];
       
-      console.log('Using default date range:', 
+      console.log('Using current date range:', 
                 defaultRange.start.toISOString(),
                 'to', 
                 defaultRange.end.toISOString());
@@ -353,11 +395,16 @@ export function DateAwareAttributeFilter({
     // Now we only filter by search query, not by date range
     // We'll show all events but gray out those outside the date range
     const newFilteredValues = availableValues.filter(value => {
-      // Only filter by search query
-      return value.toLowerCase().includes(searchQuery.toLowerCase());
+      // Only filter by search query if there is a search query
+      if (!searchQuery) return true;
+      
+      // Make sure to handle numeric searches properly
+      const valueStr = String(value).toLowerCase();
+      const queryStr = searchQuery.toLowerCase();
+      return valueStr.includes(queryStr);
     });
     
-    console.log(`Filtered from ${availableValues.length} to ${newFilteredValues.length} values based on search`);
+    // console.log(`Filtered from ${availableValues.length} to ${newFilteredValues.length} values based on search`);
     setFilteredValues(newFilteredValues);
     
   }, [availableValues, searchQuery, allEventData, tableName, timeframeSelections]); // Added timeframeSelections dependency
@@ -388,21 +435,30 @@ export function DateAwareAttributeFilter({
         updateParent(validSelectedValues);
       }
     }
-  }, [filteredValues, selected]);
-
+  }, [filteredValues, selected, updateParent]);
+  
   // Handle individual checkbox change
-  const handleCheckboxChange = (value: string) => {
-    const newSelection = selected.includes(value)
-      ? selected.filter(v => v !== value)
-      : [...selected, value];
-    updateParent(newSelection);
+  const handleCheckboxChange = (value: string, eventDate?: string) => {
+    // For debugging - log the event date when available
+    if (eventDate && tableName === "social_events") {
+      // console.log(`Toggling event: ${value} with date: ${eventDate}`);
+    }
+    
+    if (selected.includes(value)) {
+      updateParent(selected.filter(v => v !== value));
+    } else {
+      updateParent([...selected, value]);
+    }
   };
-
   // Check if this is a small attribute set (few options)
   const isSmallAttributeSet = !isLoading && !error && filteredValues.length <= 5;
   
   // Check if this is a very small set (2-3 options) where we don't need a Select All button
+  // Note: We now handle the search bar visibility separately
   const isVerySmallSet = !isLoading && !error && filteredValues.length <= 3;
+  
+  // Always show search if there's an active search query or more than 5 options
+  const shouldShowSearch = searchQuery || (!isLoading && !error && availableValues.length > 5);
   
   // Check if this is a boolean attribute (only has true/false values)
   const isBooleanAttribute = !isLoading && !error && 
@@ -410,11 +466,14 @@ export function DateAwareAttributeFilter({
     filteredValues.every(value => value.toLowerCase() === 'true' || value.toLowerCase() === 'false');
 
   // Format date for display
-  const formatDate = (dateStr: string): string => {
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) {
+      return 'No date available';
+    }
     try {
-      return format(parseISO(dateStr), 'MMM d, yyyy');
+      return format(parseISO(dateStr), 'MMM d, yyyy h:mm a');
     } catch (error) {
-      return 'Invalid date';
+      return 'No date available';
     }
   };
 
@@ -429,12 +488,16 @@ export function DateAwareAttributeFilter({
     if (!effectiveTimeframeSelections || effectiveTimeframeSelections.length === 0) return false;
     
     const eventInfo = allEventData.find(event => event.event_name === eventName);
-    if (eventInfo) {
-      // Use the effective timeframe selections
-      const result = !isDateInRange(eventInfo.date_start, effectiveTimeframeSelections);
-      return result;
+    
+    // If event has no date_start, consider it outside the range (ineligible for selection)
+    if (!eventInfo || !eventInfo.date_start) {
+      // console.log(`Event ${eventName} has no date_start, marking as outside range`);
+      return true;
     }
-    return false;
+    
+    // Use the effective timeframe selections
+    const result = !isDateInRange(eventInfo.date_start, effectiveTimeframeSelections);
+    return result;
   };
 
   // Get date for an event
@@ -443,96 +506,54 @@ export function DateAwareAttributeFilter({
     if (eventInfo && eventInfo.date_start) {
       return formatDate(eventInfo.date_start);
     }
+    return 'No date available';
+  };
+  
+  // Get city information for an event
+  const getEventLocation = (eventName: string): string => {
+    const eventInfo = allEventData.find(event => event.event_name === eventName);
+    if (eventInfo && eventInfo.city) {
+      return eventInfo.city;
+    }
     return '';
   };
 
-  // Render a compact filter if it's a boolean or small attribute set
-  if (isBooleanAttribute || isSmallAttributeSet) {
-    return (
-      <div className="space-y-2 w-full">
-        
-        {!isVerySmallSet && (
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex items-center gap-1 text-xs h-8"
-              onClick={allSelected ? handleDeselectAll : handleSelectAll}
-            >
-              {allSelected ? (
-                <>
-                  <X className="h-3 w-3" /> Deselect All
-                </>
-              ) : (
-                <>
-                  <Check className="h-3 w-3" /> Select All
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="p-2 text-center text-muted-foreground bg-gray-50 border rounded-md">
-            Loading...
-          </div>
-        ) : error ? (
-          <div className="p-2 text-center text-red-500 bg-red-50 border border-red-200 rounded-md">
-            {error}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 w-full">
-            {filteredValues.map((value) => (
-              <div key={value} className="flex items-center">
-                <Checkbox
-                  id={`${attributeColumnName}-${value}`}
-                  checked={selected.includes(value)}
-                  onCheckedChange={() => handleCheckboxChange(value)}
-                  className="mr-2"
-                  disabled={isEventOutsideRange(value)}
-                />
-                <label
-                  htmlFor={`${attributeColumnName}-${value}`}
-                  className={`text-sm truncate flex items-center gap-1 ${isEventOutsideRange(value) ? 'text-gray-400' : ''}`}
-                >
-                  {value}
-                  {isEventOutsideRange(value) && (
-                    <span className="flex items-center gap-1 ml-1">
-                      <span className="text-xs text-gray-400">(Outside date range)</span>
-                      <InfoTooltip content={`This event occurs on ${getEventDate(value)}, which is outside the selected date range.`} />
-                    </span>
-                  )}
-                </label>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
+  // Get venue information for an event
+  const getEventVenue = (eventName: string): string => {
+    const eventInfo = allEventData.find(event => event.event_name === eventName);
+    if (eventInfo && eventInfo.venue) {
+      return eventInfo.venue;
+    }
+    return '';
+  };
   
   // Standard filter for non-boolean attributes
   return (
     <div className="space-y-2 w-full flex-grow">
       
       {/* Search and Select/Deselect All */}
-      <div className="space-y-2 w-full">
-        <div className="relative w-full">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Find..."
-            className="pl-8 w-full"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+      <div className="w-full">
+        {/* Always show search if needed, regardless of set size */}
+        {shouldShowSearch && (
+          <div className="flex gap-2 w-full items-center">
+            <div className="relative flex-grow">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Find..."
+                className="pl-8 w-full"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
         
-        {!isVerySmallSet && (
-          <div className="flex gap-2">
+        <div className="flex gap-2 w-full items-center mt-2">
+          {!isVerySmallSet && (
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-1 text-xs h-8"
+              className="flex items-center gap-1 text-xs h-8 whitespace-nowrap"
               onClick={allSelected ? handleDeselectAll : handleSelectAll}
             >
               {allSelected ? (
@@ -545,8 +566,8 @@ export function DateAwareAttributeFilter({
                 </>
               )}
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       
       {/* Checkbox list */}
@@ -563,12 +584,13 @@ export function DateAwareAttributeFilter({
           No matching values found
         </div>
       ) : (
-        <ScrollArea className={getScrollAreaHeight(filteredValues.length)}>
-          <div className="space-y-1 p-1">
-            {/* Sort events so available ones appear first */}
-            {filteredValues
-              .map(value => ({
+        <ScrollArea className={`${getScrollAreaHeight(filteredValues.length)} border rounded-md p-1 w-full`}>
+          <div className="space-y-1">
+            {/* Remove any duplicates from filteredValues */}
+            {[...new Set(filteredValues)]
+              .map((value, index) => ({
                 value,
+                index,
                 isDisabled: isEventOutsideRange(value),
                 eventInfo: allEventData.find(event => event.event_name === value)
               }))
@@ -585,46 +607,109 @@ export function DateAwareAttributeFilter({
                 }
                 return 0;
               })
-              .map(({ value, isDisabled, eventInfo }) => {
-                const eventDate = eventInfo ? new Date(eventInfo.date_start) : null;
-                const formattedDate = eventDate ? format(eventDate, 'MMM d, yyyy') : '';
-              
-              return (
-                <div key={value} className="flex items-center py-1.5 border-b border-gray-100 last:border-0">
-                  <Checkbox
-                    id={`${attributeColumnName}-${value}`}
-                    checked={selected.includes(value)}
-                    onCheckedChange={() => handleCheckboxChange(value)}
-                    disabled={isDisabled}
-                    className="mr-2"
-                  />
-                  <div className="flex flex-col w-full">
-                    <div className="flex items-center justify-between">
-                      <label
-                        htmlFor={`${attributeColumnName}-${value}`}
-                        className={`text-sm font-medium cursor-pointer ${isDisabled ? 'text-gray-400' : 'text-gray-800'}`}
-                      >
-                        {value}
-                        {isDisabled && (
-                          <InfoTooltip
-                            content={`This event is not available during the selected date range`}
-                            className="ml-1"
-                          />
+              .map(({ value, index, isDisabled, eventInfo }) => {
+                // Find all instances of this event (could have multiple times)
+                const allEventInstances = allEventData.filter(event => event.event_name === value);
+                
+                // Sort instances by date
+                allEventInstances.sort((a, b) => {
+                  const dateA = new Date(a.date_start);
+                  const dateB = new Date(b.date_start);
+                  return dateA.getTime() - dateB.getTime();
+                });
+                
+                // Format dates for all instances
+                const formattedDates = allEventInstances.map(instance => {
+                  if (!instance.date_start) {
+                    return 'No date available';
+                  }
+                  try {
+                    const date = new Date(instance.date_start);
+                    return format(date, 'MMM d, yyyy h:mm a');
+                  } catch (error) {
+                    console.error(`Error formatting date for ${instance.event_name}:`, error);
+                    return 'No date available';
+                  }
+                });
+                
+                // For backward compatibility, keep the single date format too
+                let formattedDate = 'No date available';
+                if (eventInfo && eventInfo.date_start) {
+                  try {
+                    const eventDate = new Date(eventInfo.date_start);
+                    formattedDate = format(eventDate, 'MMM d, yyyy h:mm a');
+                  } catch (error) {
+                    console.error(`Error formatting single date for ${value}:`, error);
+                  }
+                }
+                
+                return (
+                  <div key={`event-${value.replace(/\s+/g, '-')}-${index}`} className="flex items-center py-1 border-b border-gray-100 last:border-0">
+                    <Checkbox
+                      id={`${attributeColumnName}-${value}-${index}`}
+                      checked={selected.includes(value)}
+                      onCheckedChange={() => handleCheckboxChange(value, eventInfo?.date_start)}
+                      disabled={isDisabled}
+                      className="mr-2"
+                    />
+                    <div className="flex flex-col w-full">
+                      <div className="flex items-center justify-between">
+                        <label
+                          htmlFor={`${attributeColumnName}-${value}-${index}`}
+                          className={`text-sm font-medium cursor-pointer ${isDisabled ? 'text-gray-400' : 'text-gray-800'}`}
+                        >
+                          {value}
+                          {isDisabled && (
+                            <InfoTooltip
+                              content={`This event is not available during the selected date range`}
+                              className="ml-1"
+                            />
+                          )}
+                        </label>
+                      </div>
+                      <div className="flex flex-col">
+                        {/* If there are multiple times for this event, show all of them */}
+                        {allEventInstances.length > 1 ? (
+                          <div className="flex flex-col">
+                            {formattedDates.map((date, dateIndex) => (
+                              <div key={dateIndex} className="flex items-center">
+                                <span className={`text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {date}
+                                </span>
+                                {dateIndex === 0 && (
+                                  <span className="ml-1 text-xs px-1 bg-blue-100 text-blue-800 rounded">
+                                    +{allEventInstances.length - 1} more
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className={`text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {formattedDate}
+                          </span>
                         )}
-                      </label>
+                        {/* Show venue information */}
+                        {eventInfo?.venue && (
+                          <span className={`text-xs block mt-1 ${isDisabled ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {eventInfo.venue}
+                          </span>
+                        )}
+                        {/* Show city information */}
+                        {eventInfo?.city && (
+                          <span className={`text-xs block ${isDisabled ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {eventInfo.city}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {formattedDate && (
-                      <span className={`text-xs ${isDisabled ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {formattedDate}
-                      </span>
-                    )}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </ScrollArea>
       )}
     </div>
   );
+  
 }

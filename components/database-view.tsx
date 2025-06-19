@@ -33,7 +33,7 @@ interface DatabaseViewProps {
 export function DatabaseView({ 
   data, 
   dataExtractor, 
-  title = 'Database Explorer',
+  title = 'Search Results',
   description = 'View and explore data from the API',
   initialDataset,
   customColumns,
@@ -176,18 +176,49 @@ export function DatabaseView({
       
       // Determine column priority based on key name
       let priority = 5; // Default priority
+      let visible = true; // Default visibility
+      
+      // Check if column should be hidden by default
+      const keyLower = key.toLowerCase();
+      
+      // Hide ID columns by default
+      if (keyLower === 'id' || keyLower.endsWith('_id') || keyLower.includes('uuid')) {
+        visible = false;
+      }
+      // Hide coordinate columns by default
+      else if (keyLower.includes('coord') || keyLower.includes('latitude') || 
+               keyLower.includes('longitude') || keyLower.includes('lat') || 
+               keyLower.includes('lng') || keyLower.includes('lon')) {
+        visible = false;
+      }
+      else if (keyLower.includes('additional') || keyLower.includes('retrieval')) {
+        visible = false;
+      }
       
       // Higher priority for common important fields
-      if (['id', 'name', 'title', 'type', 'status', 'date', 'time', 'category'].includes(key.toLowerCase())) {
+      if (['name', 'title', 'type', 'status', 'date', 'time', 'category'].includes(keyLower)) {
         priority = 1;
       }
       // Medium priority for descriptive fields
-      else if (key.toLowerCase().includes('description') || key.toLowerCase().includes('summary')) {
-        priority = 3;
+      else if (keyLower.includes('county') || keyLower.includes('city')) {
+        priority = 6;
+      }
+      else if (keyLower.includes('location_category')){
+        priority = 5;
+      }
+      else if (keyLower.includes('region')){
+        priority = 5.5;
+      }
+      else if (keyLower.includes('subdistrict') || keyLower.includes('unit')) {
+        priority = 7;
+      }
+      else if (keyLower.includes('district')) {
+        priority = 6.5;
       }
       // Lower priority for technical or internal fields
-      else if (key.startsWith('_') || key.includes('metadata') || key.includes('raw')) {
+      else if (key.startsWith('_') || keyLower.includes('metadata') || keyLower.includes('raw')) {
         priority = 10;
+        visible = false;
       }
       
       return {
@@ -195,7 +226,7 @@ export function DatabaseView({
         label: key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
         type,
         sortable: true,
-        visible: priority < 8, // Hide very low priority columns by default
+        visible: visible && priority <= 8, // Apply both visibility rules
         priority,
         width: undefined
       };
@@ -441,79 +472,75 @@ export function DatabaseView({
   
   return (
     <div className="bg-white rounded-lg shadow-sm border p-4 flex flex-col overflow-hidden" style={{ height: '100%' }}>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h2 className="text-xl font-semibold">{title}</h2>
-          <p className="text-gray-500 text-sm">{description}</p>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <Select value={selectedDataset} onValueChange={(value) => {
-            setSelectedDataset(value);
-            setCurrentPage(1);
-          }}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select dataset" />
-            </SelectTrigger>
-            <SelectContent>
-              {datasets.map(dataset => (
-                <SelectItem key={dataset} value={dataset}>
-                  {dataset.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportCSV}
-            disabled={sortedData.length === 0}
-          >
-            <Download className="h-4 w-4 mr-1" />
-            Export CSV
-          </Button>
-        </div>
+      {/* Title at the top */}
+      <div className="mb-2">
+        <h2 className="text-xl font-semibold">{title}</h2>
       </div>
       
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <div className="flex justify-between items-center mb-4">
-          <TabsList>
-            <TabsTrigger value="table">Table</TabsTrigger>
-            <TabsTrigger value="json">JSON</TabsTrigger>
-          </TabsList>
-          
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="pl-8 h-8 w-[200px]"
-              />
-            </div>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsColumnSelectorOpen(!isColumnSelectorOpen)}
-                  >
-                    <Filter className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Select columns to display</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+      {/* Controls in one row below the title */}
+      <div className="flex items-center space-x-2 mb-4">
+        {/* Search */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="pl-8 h-9 w-full"
+          />
         </div>
+        
+        {/* Select columns button */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsColumnSelectorOpen(!isColumnSelectorOpen)}
+                className="h-9 whitespace-nowrap"
+              >
+                <Filter className="h-4 w-4 mr-1" />
+                Select columns
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Select columns to display</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        
+        {/* Dataset selector */}
+        <Select value={selectedDataset} onValueChange={(value) => {
+          setSelectedDataset(value);
+          setCurrentPage(1);
+        }}>
+          <SelectTrigger className="w-[180px] h-9">
+            <SelectValue placeholder="Select dataset" />
+          </SelectTrigger>
+          <SelectContent>
+            {datasets.map(dataset => (
+              <SelectItem key={dataset} value={dataset}>
+                {dataset.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        {/* Export CSV button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={exportCSV}
+          disabled={sortedData.length === 0}
+          className="h-9 whitespace-nowrap"
+        >
+          <Download className="h-4 w-4 mr-1" />
+          Export CSV
+        </Button>
+      </div>
+      
+      <div className="flex-1 flex flex-col">
         
         {/* Column selector */}
         {isColumnSelectorOpen && (
@@ -540,7 +567,7 @@ export function DatabaseView({
         )}
         
         {/* Table View */}
-        <TabsContent value="table" className="flex-1 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 250px)' }}>
+        <div className="flex-1 overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 100px)' }}>
           {tableData.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center p-8 bg-gray-50 rounded-lg">
@@ -550,7 +577,7 @@ export function DatabaseView({
             </div>
           ) : (
             <>
-              <div className="overflow-auto flex-1 border rounded-md" style={{ maxHeight: 'calc(100vh - 350px)' }}>
+              <div className="overflow-auto flex-1 border rounded-md" style={{ maxHeight: 'calc(100vh - 300px)' }}>
                 <table className="w-full">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
@@ -558,7 +585,7 @@ export function DatabaseView({
                       {filteredColumns.map(column => (
                         <th
                           key={column.key}
-                          className={`p-2 text-left text-sm font-medium text-gray-600 ${
+                          className={`p-2 text-left text-sm font-bold text-gray-700 ${
                             column.sortable !== false ? 'cursor-pointer' : ''
                           }`}
                           onClick={() => column.sortable !== false && handleSort(column.key)}
@@ -698,85 +725,8 @@ export function DatabaseView({
               </div>
             </>
           )}
-        </TabsContent>
-        
-        {/* JSON View */}
-        <TabsContent value="json" className="flex-1">
-          <div className="overflow-auto" style={{ height: 'calc(100vh - 220px)' }}>
-            {tableData && tableData.length > 0 ? (
-              <div>
-                {tableData.map((item, index) => (
-                  <div key={index} className="mb-4 bg-white rounded border border-gray-200 shadow-sm mx-auto" style={{ maxWidth: '100%' }}>
-                    <div className="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                      <span className="font-semibold text-blue-600">Item {index + 1}</span>
-                      <button 
-                        onClick={() => copyToClipboard(item)}
-                        className="text-xs text-gray-500 hover:text-gray-700 flex items-center"
-                      >
-                        <Copy className="h-3 w-3 mr-1" />
-                        Copy
-                      </button>
-                    </div>
-                    <div className="p-4">
-                      <table className="w-full border-collapse">
-                        <tbody>
-                          {Object.entries(item).map(([key, value]) => {
-                            // Format the key name for display
-                            const formattedKey = key.split('_').map(word => 
-                              word.charAt(0).toUpperCase() + word.slice(1)
-                            ).join(' ');
-                            
-                            // Format the value based on its type
-                            let formattedValue;
-                            if (value === null) {
-                              formattedValue = <span className="italic">null</span>;
-                            } else if (typeof value === 'object') {
-                              formattedValue = (
-                                <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-20 text-black">
-                                  {JSON.stringify(value, null, 2)}
-                                </pre>
-                              );
-                            } else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-                              // Format date strings
-                              try {
-                                const date = new Date(value);
-                                formattedValue = <span>{date.toLocaleString()}</span>;
-                              } catch (e) {
-                                formattedValue = <span>{value}</span>;
-                              }
-                            } else if (typeof value === 'number') {
-                              formattedValue = <span>{value}</span>;
-                            } else if (typeof value === 'boolean') {
-                              formattedValue = <span>{value.toString()}</span>;
-                            } else {
-                              formattedValue = <span>{String(value)}</span>;
-                            }
-                            
-                            return (
-                              <tr key={key} className="border-b border-gray-100 last:border-b-0">
-                                <td className="py-2 pr-4 align-top w-1/3">
-                                  <div className="text-sm font-medium text-gray-700">{formattedKey}</div>
-                                </td>
-                                <td className="py-2 align-top">
-                                  <div className="text-sm">{formattedValue}</div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-gray-500">No data available</p>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   );
 }

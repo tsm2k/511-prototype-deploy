@@ -21,6 +21,7 @@ interface ColorMultiSelectProps {
   dropdownClassName?: string
   buttonClassName?: string
   optionClassName?: string
+  initiallyOpen?: boolean
 }
 
 
@@ -33,9 +34,10 @@ export function ColorMultiSelect({
   className,
   dropdownClassName,
   buttonClassName,
-  optionClassName
+  optionClassName,
+  initiallyOpen = false
 }: ColorMultiSelectProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(initiallyOpen)
   const dropdownRef = useRef<HTMLDivElement>(null)
   
   // Handle click outside to close dropdown

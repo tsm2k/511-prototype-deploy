@@ -144,7 +144,8 @@ export function AppTopbar({ activeView, onViewChange }: AppTopbarProps) {
   const releaseDate = "May 08, 2025"
   const menuItems = [
     { id: "map", label: "Map View", icon: Map },
-    { id: "chart", label: "Chart View", icon: BarChart3 },
+    // { id: "chart", label: "Chart View", icon: BarChart3 },
+    { id: "chart2", label: "Chart View", icon: BarChart3 },
     { id: "database", label: "Database View", icon: Database },
   ]
 
@@ -153,7 +154,7 @@ export function AppTopbar({ activeView, onViewChange }: AppTopbarProps) {
       <div className="px-4 h-full flex items-center">
         {/* Title and Version */}
         <div className="flex items-baseline gap-1.5">
-          <div className="text-2xl font-bold">511 Data Analysis</div>
+          <div className="text-2xl font-bold">SPR 4937 Data Analysis</div>
           <Dialog>
             <DialogTrigger asChild>
               <button className="relative top-[1px] bg-blue-600 text-xs font-semibold px-2.5 py-0.5 rounded-full text-white hover:bg-blue-500 transition-colors leading-tight">

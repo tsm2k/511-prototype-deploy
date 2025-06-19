@@ -80,3 +80,5 @@ export async function getPOICoordinates(poiName: string): Promise<{lat: number, 
   const pois = await fetchPOIData();
   return pois[poiName]?.coordinates || null;
 }
+
+

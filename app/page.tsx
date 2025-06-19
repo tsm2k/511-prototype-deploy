@@ -95,7 +95,7 @@ export default function Home() {
                 data-panel-id="collapsed-panel"
               >
                 <div className="h-full w-full flex flex-col items-center pt-16 bg-white">
-                  <div className="writing-vertical text-lg font-medium text-gray-700 mb-4">Data Filters</div>
+                  <div className="writing-vertical text-lg font-medium text-gray-700 mb-4">Data Request Menu</div>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -109,9 +109,9 @@ export default function Home() {
               </ResizablePanel>
             ) : (
               <ResizablePanel 
-                defaultSize={32} 
-                minSize={38} 
-                maxSize={45}
+                defaultSize={40} 
+                minSize={41} 
+                maxSize={55}
                 className="min-w-[300px]"
                 data-panel-id="filters-panel"
               >
@@ -144,16 +144,6 @@ export default function Home() {
                 {/* Chart View - Always rendered but conditionally displayed */}
                 <div className={`absolute inset-0 transition-opacity duration-300 ${activeView === "chart" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}>
                   <div className="h-full w-full">
-                    <div className="p-4 bg-gray-50 border-b">
-                      <Button 
-                        variant="outline" 
-                        onClick={() => handleViewChange("map")}
-                        className="flex items-center gap-2"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        Back to Map View
-                      </Button>
-                    </div>
                     {/* Chart View Content */}
                     <div className="h-[calc(100%-56px)]">
                       {/* @ts-ignore - Dynamic import */}
@@ -165,19 +155,23 @@ export default function Home() {
                   </div>
                 </div>
                 
+                {/* Chart View 2 - Always rendered but conditionally displayed */}
+                <div className={`absolute inset-0 transition-opacity duration-300 ${activeView === "chart2" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}>
+                  <div className="h-full w-full">
+                    {/* Chart View 2 Content */}
+                    <div className="h-[calc(100%-56px)]">
+                      {/* @ts-ignore - Dynamic import */}
+                      {(() => {
+                        const ChartView2 = require("@/components/chart-view-2").default;
+                        return <ChartView2 />;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                
                 {/* Database View - Always rendered but conditionally displayed */}
                 <div className={`absolute inset-0 transition-opacity duration-300 ${activeView === "database" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}>
                   <div className="h-full w-full">
-                    <div className="p-4 bg-gray-50 border-b">
-                      <Button 
-                        variant="outline" 
-                        onClick={() => handleViewChange("map")}
-                        className="flex items-center gap-2"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        Back to Map View
-                      </Button>
-                    </div>
                     {/* Database View Content */}
                     <div className="h-[calc(100%-56px)]">
                       <DatabaseView data={mapData} />

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { CalendarIcon, ChevronDown } from "lucide-react";
+import { CalendarIcon, ChevronDown, Clock } from "lucide-react";
+import { X } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,12 +18,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
 import { Tag } from "@/components/ui/tag";
 
 import {
@@ -74,7 +76,8 @@ export type TimeframeSelection =
   | { type: "monthDays"; monthDays: string[]; operator?: "AND" | "OR" }
   | { type: "holidays"; holidays: string[]; operator?: "AND" | "OR" }
   | { type: "monthWeek"; monthWeek: string; monthWeekday: string; operator?: "AND" | "OR" }
-  | { type: "hours"; hours: number[]; operator?: "AND" | "OR" };
+  | { type: "hours"; hours: number[]; operator?: "AND" | "OR" }
+  | { type: "granularity"; granularity: string; operator?: "AND" | "OR" };
 
 export interface TimelineSelectorProps {
   selections: TimeframeSelection[];
@@ -118,9 +121,39 @@ export function TimelineSelector({
   // State for available holidays
   const [availableHolidays, setAvailableHolidays] = useState<Holiday[]>([]);
   
-  // State for accordion
+  // State for expanded accordion
   const [expanded, setExpanded] = useState(false);
-  const [preview, setPreview] = useState<React.ReactNode>(null);
+  const [preview, setPreview] = useState<React.ReactNode | null>(null);
+  
+  // State for granularity - initialize from selections if available
+  const initialGranularity = (() => {
+    const granularitySelection = selections.find(s => s.type === 'granularity');
+    if (granularitySelection && granularitySelection.type === 'granularity') {
+      return granularitySelection.granularity;
+    }
+    return "1H"; // Default to 1 hour if not found
+  })();
+  const [granularity, setGranularity] = useState<string>(initialGranularity);
+  
+  // State for granularity dropdown menu
+  const [granularityMenuOpen, setGranularityMenuOpen] = useState<boolean>(false);
+  
+  // Reference for the granularity menu
+  const granularityMenuRef = useRef<HTMLDivElement>(null);
+  
+  // Close granularity menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (granularityMenuRef.current && !granularityMenuRef.current.contains(event.target as Node)) {
+        setGranularityMenuOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
   // Initialize default date range selection when component mounts
   useEffect(() => {
@@ -280,13 +313,63 @@ export function TimelineSelector({
     updateAvailableHolidays();
   }, [startDate, endDate]);
   
-  // Initialize date range selection when component loads
+  // Initialize from existing selections when component mounts or selections change
   useEffect(() => {
-    // Only add date range if no selections exist yet
-    if (selections.length === 0) {
-      updateDateRangeSelection(startDate, endDate);
+    // Update date range from selections
+    const dateRangeSelection = selections.find(s => s.type === 'dateRange');
+    if (dateRangeSelection && dateRangeSelection.type === 'dateRange' && dateRangeSelection.range) {
+      setStartDate(dateRangeSelection.range.start);
+      setEndDate(dateRangeSelection.range.end);
     }
-  }, []);
+    
+    // Update weekdays from selections
+    const weekdaysSelection = selections.find(s => s.type === 'weekdays');
+    if (weekdaysSelection && weekdaysSelection.type === 'weekdays') {
+      setWeekdays(weekdaysSelection.weekdays);
+    } else {
+      setWeekdays([]);
+    }
+    
+    // Update hours from selections
+    const hoursSelection = selections.find(s => s.type === 'hours');
+    if (hoursSelection && hoursSelection.type === 'hours') {
+      setDayHours(hoursSelection.hours);
+    } else {
+      setDayHours([0, 24]);
+    }
+    
+    // Update month days from selections
+    const monthDaysSelection = selections.find(s => s.type === 'monthDays');
+    if (monthDaysSelection && monthDaysSelection.type === 'monthDays') {
+      setMonthDays(monthDaysSelection.monthDays);
+    } else {
+      setMonthDays([]);
+    }
+    
+    // Update month week from selections
+    const monthWeekSelection = selections.find(s => s.type === 'monthWeek');
+    if (monthWeekSelection && monthWeekSelection.type === 'monthWeek') {
+      setMonthWeek(monthWeekSelection.monthWeek);
+      setMonthWeekday(monthWeekSelection.monthWeekday);
+    } else {
+      setMonthWeek("");
+      setMonthWeekday("");
+    }
+    
+    // Update holidays from selections
+    const holidaysSelection = selections.find(s => s.type === 'holidays');
+    if (holidaysSelection && holidaysSelection.type === 'holidays') {
+      setSelectedHolidays(holidaysSelection.holidays);
+    } else {
+      setSelectedHolidays([]);
+    }
+    
+    // Update granularity from selections
+    const granularitySelection = selections.find(s => s.type === 'granularity');
+    if (granularitySelection && granularitySelection.type === 'granularity') {
+      setGranularity(granularitySelection.granularity);
+    }
+  }, [selections]);
   
   // Handle hour change
   const handleHourChange = (hours: number[]) => {
@@ -451,6 +534,9 @@ export function TimelineSelector({
       parts.push(yearlyPreview);
     }
     
+    // Add granularity to preview
+    parts.push(`Granularity: ${granularity}`);
+    
     return parts.join("; ");
   }
   
@@ -511,6 +597,16 @@ export function TimelineSelector({
         operator: "AND"
       });
     }
+    
+    // Add granularity selection
+    newSelections.push({
+      type: "granularity",
+      granularity,
+      operator: "AND"
+    });
+    
+    console.log('Applying selections with granularity:', granularity);
+    console.log('All selections being applied:', newSelections);
     
     // Update selections
     onSelectionsChange(newSelections);
@@ -674,7 +770,7 @@ export function TimelineSelector({
     } else {
       setPreview(null);
     }
-  }, [dayHours, weekdays, monthDays, monthWeek, monthWeekday, selectedHolidays]);
+  }, [dayHours, weekdays, monthDays, monthWeek, monthWeekday, selectedHolidays, granularity]);
   
   // Remove a selection
   const removeSelection = (index: number) => {
@@ -689,7 +785,68 @@ export function TimelineSelector({
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm outline-none w-full overflow-hidden">
         <div className="flex flex-col max-h-full overflow-y-auto">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-800">Date Options</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-semibold text-gray-800">Date Options</h3>
+              <div className="flex items-center gap-1">
+                <Label className="text-xs font-medium text-gray-700">Granularity</Label>
+                <div className="relative" ref={granularityMenuRef}>
+                  <Button 
+                    variant="outline" 
+                    className="h-7 px-2 text-xs border-gray-300 shadow-sm flex items-center gap-1"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent event bubbling
+                      setGranularityMenuOpen(!granularityMenuOpen);
+                    }}
+                  >
+                    {granularity}
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                  
+                  {granularityMenuOpen && (
+                    <div className="absolute top-full right-0 mt-1 w-[120px] bg-white border border-gray-200 rounded-md shadow-md z-50">
+                      {[
+                        { value: "30M", label: "30 Min" },
+                        { value: "1H", label: "1 Hour" },
+                        { value: "1D", label: "1 Day" }
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 ${granularity === option.value ? 'bg-gray-100 font-medium' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent event bubbling
+                            console.log('Setting granularity to:', option.value);
+                            setGranularity(option.value);
+                            // Apply selections immediately with the new granularity value
+                            setTimeout(() => {
+                              const updatedSelections = [...selections];
+                              // Find and update granularity selection
+                              const granularityIndex = updatedSelections.findIndex(s => s.type === 'granularity');
+                              if (granularityIndex >= 0) {
+                                updatedSelections[granularityIndex] = {
+                                  type: 'granularity',
+                                  granularity: option.value,
+                                  operator: 'AND'
+                                };
+                              } else {
+                                updatedSelections.push({
+                                  type: 'granularity',
+                                  granularity: option.value,
+                                  operator: 'AND'
+                                });
+                              }
+                              onSelectionsChange(updatedSelections);
+                            }, 0);
+                            setGranularityMenuOpen(false);
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
             
             {/* Date Range Selector */}
             <div className="mt-3 flex items-center gap-2">
@@ -698,7 +855,7 @@ export function TimelineSelector({
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="justify-start text-left font-normal h-9 text-sm border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
+                    className="justify-start text-left font-normal h-9 text-sm border-gray-300 hover:bg-gray-50 transition-colors shadow-sm relative"
                   >
                     <CalendarIcon className="mr-1 h-4 w-4 text-gray-500" />
                     <span className="text-gray-800">{format(startDate, "MMM d, yyyy")}</span>
@@ -719,7 +876,7 @@ export function TimelineSelector({
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="justify-start text-left font-normal h-9 text-sm border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
+                    className="justify-start text-left font-normal h-9 text-sm border-gray-300 hover:bg-gray-50 transition-colors shadow-sm relative"
                   >
                     <CalendarIcon className="mr-1 h-4 w-4 text-gray-500" />
                     <span className="text-gray-800">{endDate ? format(endDate, "MMM d, yyyy") : <span className="text-gray-500">Pick a date</span>}</span>
@@ -730,6 +887,18 @@ export function TimelineSelector({
                     mode="single"
                     selected={endDate}
                     onSelect={handleEndDateChange}
+                    disabled={(date) => {
+                      // Disable dates before the start date
+                      return date < startDate;
+                    }}
+                    defaultMonth={startDate} // Set default month to start date month
+                    // footer={
+                    //   <div className="px-4 pt-0 pb-3">
+                    //     <p className="text-xs text-muted-foreground text-center">
+                    //       Dates before {format(startDate, "MMM d, yyyy")} are disabled
+                    //     </p>
+                    //   </div>
+                    // }
                     className="rounded-md"
                   />
                 </PopoverContent>
@@ -853,18 +1022,17 @@ export function TimelineSelector({
                     </AccordionItem>
                   </Accordion>
                   
-                  {/* Yearly / Holidays */}
+                  {/*Holidays */}
                   <Accordion type="single" collapsible className="mb-3">
                     <AccordionItem value="yearly" className="border border-gray-200 rounded-md overflow-hidden">
                       <AccordionTrigger className="px-3 py-2 hover:bg-gray-50">
                         <div className="flex justify-between w-full items-center">
-                          <span className="font-medium text-gray-800">Days of Year & Holidays</span>
+                          <span className="font-medium text-gray-800">Holidays</span>
                           <span className="text-gray-600 text-sm bg-gray-100 px-2 py-1 rounded">{getYearlyPreviewString()}</span>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="p-4 border-t border-gray-200 bg-gray-50 space-y-3">
-                          <Label className="text-sm font-medium text-gray-700">Select holidays</Label>
                           <ScrollArea className="h-[200px] rounded-md border border-gray-300 p-3 bg-white shadow-inner">
                             <HolidaySelector
                               allHolidays={US_HOLIDAYS}
@@ -873,62 +1041,6 @@ export function TimelineSelector({
                               callback={setSelectedHolidays}
                             />
                           </ScrollArea>
-                        </div>
-                        <div className="p-4 mt-3 border rounded-md bg-gray-50 space-y-3">
-                          <Label className="text-sm font-medium text-gray-700">Select a specific day</Label>
-                          <div className="grid grid-cols-2 gap-3">
-                            <Select
-                              value={monthWeek}
-                              onValueChange={(value) => {
-                                if (value === "-") setMonthWeek("");
-                                else setMonthWeek(`${value}`);
-                              }}
-                            >
-                              <SelectTrigger
-                                className="h-9 border-gray-300 bg-white shadow-sm"
-                                style={{
-                                  color: monthWeek ? "black" : "gray",
-                                }}
-                              >
-                                <SelectValue placeholder="Position in Year" />
-                              </SelectTrigger>
-                              <SelectContent className="border-gray-200 shadow-lg">
-                                {
-                                  ["-", "first", "second", "third", "fourth", "last"].map((week) => (
-                                    <SelectItem key={week} value={week}>
-                                      {week === "-" ? "Select position" : week}
-                                    </SelectItem>
-                                  ))
-                                }
-                              </SelectContent>
-                            </Select>
-                            
-                            <Select
-                              value={monthWeekday}
-                              onValueChange={(value) => {
-                                if (value === "-") setMonthWeekday("");
-                                else setMonthWeekday(`${value}`);
-                              }}
-                            >
-                              <SelectTrigger
-                                className="h-9 border-gray-300 bg-white shadow-sm"
-                                style={{
-                                  color: monthWeekday ? "black" : "gray",
-                                }}
-                              >
-                                <SelectValue placeholder="Day of Week" />
-                              </SelectTrigger>
-                              <SelectContent className="border-gray-200 shadow-lg">
-                                {
-                                  ["-", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
-                                    <SelectItem key={day} value={day}>
-                                      {day === "-" ? "Select day" : day.charAt(0).toUpperCase() + day.slice(1)}
-                                    </SelectItem>
-                                  ))
-                                }
-                              </SelectContent>
-                            </Select>
-                          </div>
                         </div>
                       </AccordionContent>
                     </AccordionItem>

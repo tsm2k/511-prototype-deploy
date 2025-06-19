@@ -1,7 +1,10 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2, Filter as FilterIcon, Info, BarChart, AlertTriangle } from "lucide-react"
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { MapPin, Calendar, Database, RefreshCw, ChevronDown, ChevronUp, AlertCircle, Plus, Check, Trash2, Filter as FilterIcon, Info, BarChart, AlertTriangle, X } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CauseEffectDatasetSelector } from "@/components/selectors/cause-effect-dataset-selector"
 import { Switch } from "@/components/ui/switch"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
@@ -24,10 +27,173 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { executeQuery, fetchDataSourcesMetadata, type DataSourceMetadata } from "@/services/api"
-import { buildQueryRequest } from "@/services/query-builder"
-import { LocationFilter, TimeFilter } from "@/types/filters"
+import { buildQueryRequest, HOLIDAY_NAMES } from '@/services/query-builder'
+import { LocationFilter, TimeFilter } from '@/types/filters'
 import { useToast } from "@/hooks/use-toast"
 import { motion } from "framer-motion";
+
+// Dataset Tab Selector Component
+interface DatasetTabSelectorProps {
+  filterId: string;
+  selectedDatasets: string[];
+  onDatasetChange: (datasets: string[]) => void;
+  datasetSummaryRef: { getSummary: (() => string) | null };
+  onActiveDatasetChange?: (dataset: string | null) => void;
+}
+
+const DatasetTabSelector = ({ filterId, selectedDatasets, onDatasetChange, datasetSummaryRef, onActiveDatasetChange }: DatasetTabSelectorProps) => {
+  const [isAddingDataset, setIsAddingDataset] = useState(false);
+  const [activeDataset, setActiveDataset] = useState<string | null>(null);
+  
+  // Set initial active dataset when datasets change
+  useEffect(() => {
+    if (selectedDatasets.length > 0 && (!activeDataset || !selectedDatasets.includes(activeDataset))) {
+      const newActiveDataset = selectedDatasets[0];
+      setActiveDataset(newActiveDataset);
+      if (onActiveDatasetChange) {
+        onActiveDatasetChange(newActiveDataset);
+      }
+    } else if (selectedDatasets.length === 0) {
+      setActiveDataset(null);
+      if (onActiveDatasetChange) {
+        onActiveDatasetChange(null);
+      }
+    }
+  }, [selectedDatasets]); // Remove activeDataset and onActiveDatasetChange from dependencies
+  
+  // Predefined list of available datasets
+  const availableDatasets = [
+    { value: 'social_events', label: 'Social Events (Ticketmaster)', description: 'Planned social gatherings affecting traffic' },
+    { value: 'traffic_events', label: 'Traffic Events (511)', description: 'Traffic incidents and events' },
+    { value: 'lane_blockage_info', label: 'Lane Blockages (511)', description: 'Information about lane closures and blockages' },
+    { value: 'rest_area_info', label: 'Rest Areas (511)', description: 'Locations and details of highway rest areas' },
+    { value: 'dynamic_message_sign_info', label: 'Dynamic Message Signs (511)', description: 'Dynamic message signs data' },
+    { value: 'traffic_parking_info', label: 'Truck Parking Information (511)', description: 'Truck parking Information Management System data' },
+    { value: 'travel_time_system_info', label: 'Travel Time System (511)', description: 'Travel Time System data' },
+    { value: 'variable_speed_limit_sign_info', label: 'Variable Speed Limit Signs (511)', description: 'Variable Speed Limit Signs data' },
+    { value: 'weather_info', label: 'Road Weather Inormation System (511)', description: 'Road Weather Inormation System data ' },
+    { value: 'traffic_speed_info', label: 'Traffic Speed (511)', description: 'Traffic Speed data' }
+  ];
+
+  // Helper function to get display name for a dataset
+  const getDisplayName = (dataset: string): string => {
+    const datasetOption = availableDatasets.find(d => d.value === dataset);
+    return datasetOption ? datasetOption.label : dataset;
+  };
+
+  // Handle selecting a dataset
+  const handleSelectDataset = (dataset: string): void => {
+    if (!selectedDatasets.includes(dataset)) {
+      const newDatasets = [...selectedDatasets, dataset];
+      onDatasetChange(newDatasets);
+      setActiveDataset(dataset); // Set the newly added dataset as active
+      if (onActiveDatasetChange) {
+        onActiveDatasetChange(dataset);
+      }
+    }
+    setIsAddingDataset(false);
+  };
+
+  // Handle clicking on a dataset tab
+  const handleTabClick = (dataset: string): void => {
+    // Only update if it's different from current active dataset
+    if (dataset !== activeDataset) {
+      setActiveDataset(dataset);
+      if (onActiveDatasetChange) {
+        onActiveDatasetChange(dataset);
+      }
+    }
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="border-b overflow-x-auto whitespace-nowrap pb-1 mb-4">
+        {/* Display selected datasets as tabs */}
+        <div className="inline-flex">
+          {selectedDatasets.map((dataset) => (
+            <div 
+              key={dataset}
+              onClick={() => handleTabClick(dataset)}
+              className={`px-4 py-2 rounded-t-md border-t border-l border-r mr-1 relative inline-flex items-center cursor-pointer transition-colors ${activeDataset === dataset ? 'bg-blue-50 border-blue-200' : 'bg-white'}`}
+            >
+              <span className={activeDataset === dataset ? 'font-medium text-blue-700' : ''}>
+                {getDisplayName(dataset)}
+              </span>
+              <button 
+                className="ml-2 text-gray-400 hover:text-gray-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Remove this dataset
+                  const newDatasets = selectedDatasets.filter(d => d !== dataset);
+                  onDatasetChange(newDatasets);
+                  // If removing the active dataset, select the first available one
+                  if (activeDataset === dataset && newDatasets.length > 0) {
+                    setActiveDataset(newDatasets[0]);
+                  }
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+        
+        {/* Add Dataset button */}
+        <div className="inline-flex items-center">
+          <div 
+            className="px-4 py-2 rounded-t-md border-t border-l border-r mr-1 bg-white flex items-center cursor-pointer hover:bg-gray-50"
+            onClick={() => setIsAddingDataset(!isAddingDataset)}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Dataset
+          </div>
+        </div>
+      </div>
+      
+      {/* Dataset selector panel - shown directly below */}
+      {isAddingDataset && (
+        <div className="border rounded-md p-4 bg-white shadow-md mb-4">
+          <div className="space-y-3">
+            <h3 className="font-medium">Available Datasets</h3>
+            <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+              {availableDatasets
+                .filter(dataset => !selectedDatasets.includes(dataset.value))
+                .map(dataset => (
+                  <div 
+                    key={dataset.value}
+                    className="flex items-center p-2 border rounded-md hover:bg-gray-50 cursor-pointer"
+                    onClick={() => handleSelectDataset(dataset.value)}
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{dataset.label}</div>
+                      {dataset.description && (
+                        <div className="text-sm text-gray-500">{dataset.description}</div>
+                      )}
+                    </div>
+                    <Plus className="h-4 w-4 text-gray-400" />
+                  </div>
+                ))
+              }
+              {availableDatasets.filter(dataset => !selectedDatasets.includes(dataset.value)).length === 0 && (
+                <div className="text-center text-gray-500 py-4">
+                  No more datasets available to add
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button 
+                className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800"
+                onClick={() => setIsAddingDataset(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Simple Spinner component
 const Spinner = ({ className }: { className?: string }) => (
@@ -53,28 +219,33 @@ interface LocationSelection {
 }
 
 interface Filter {
-  id: string
-  name: string
-  isOpen: boolean
-  active: boolean // Whether this filter is currently active
-  openSelector: string | null
+  id: string;
+  name: string;
+  isOpen: boolean;
+  active: boolean;
+  openSelector: string | null;
   locations: {
-    cities: string[]
-    roads: string[]
-    districts: string[]
-    pointsOfInterest?: string[]
-  }
-  timeframe: { start: string; end: string } | null
-  // New timeframe selections structure
-  timeframeSelections?: TimeframeSelection[]
-  // New location selections structure
-  locationSelections?: LocationSelection[]
-  // Mile marker ranges for roads
-  roadMileMarkerRanges?: Record<string, { min: number; max: number }>
-  // New dataset structure
-  selectedDatasets: string[] // Array of selected dataset types
-  attributeFilters: Record<string, Record<string, string[]>> // Dynamic attribute filters for datasets
-}
+    cities: string[];
+    roads: string[];
+    districts: string[];
+    pointsOfInterest?: string[];
+  };
+  cities: string[];
+  roads: string[];
+  districts: string[];
+  pointsOfInterest?: string[];
+  timeframe: { start: string; end: string } | null;
+  start: string;
+  end: string;
+  timeframeSelections?: TimeframeSelection[];
+  locationSelections?: LocationSelection[];
+  roadMileMarkerRanges?: Record<string, { min: number; max: number }>;
+  min: number;
+  max: number;
+  selectedDatasets: string[];
+  activeDataset?: string | null; // Track the active dataset tab
+  attributeFilters: Record<string, Record<string, string[]>>;
+} // Dynamic attribute filters for datasets
 
 interface SelectorPanelProps {
   onFilteredDataChange?: () => void
@@ -115,7 +286,20 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   const [showResultsHighlight, setShowResultsHighlight] = useState(false);
   const [noResultsFound, setNoResultsFound] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
-  const [resultsSummary, setResultsSummary] = useState<{total: number, byDataset: Record<string, number>}>({total: 0, byDataset: {}})
+  // Use filter context for query results and summary
+  const { queryResults: contextQueryResults, setQueryResults: setContextQueryResults, 
+          resultsSummary, setResultsSummary } = useFilterContext();
+  
+  // State for request search
+  const [requestSearchTerm, setRequestSearchTerm] = useState("");
+  const [savedRequests, setSavedRequests] = useState([
+    "Tanay - Request Jun 13 at 3:03 PM",
+    "Abin - Request Jun 13 at 3:03 PM",
+    "Liya - Request Jun 13 at 3:03 PM",
+    "Tanay - Request Jun 12 at 10:15 AM",
+    "Abin - Request Jun 11 at 2:30 PM",
+    "Liya - Request Jun 10 at 9:45 AM"
+  ]);
   
   // Save filter state to context when it changes
   useEffect(() => {
@@ -126,36 +310,147 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   }, [filters, activeFilterId, setFilterState])
   
   // Helper function to create a new empty filter
-  const createEmptyFilter = useCallback((): Filter => ({
-    id: `filter-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    name: `Filter ${filters.length + 1}`,
+  const createNewFilter = useCallback((): Filter => ({
+    id: uuidv4(),
+    name: `<Username> — Request created ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`, //`Search ${filters.length + 1}`,
     isOpen: true,
-    active: true, // New filters are active by default
+    active: true,
     openSelector: null,
     locations: {
       cities: [],
       roads: [],
       districts: [],
-      pointsOfInterest: []
+      pointsOfInterest: [],
     },
+    cities: [],
+    roads: [],
+    districts: [],
+    pointsOfInterest: [],
     timeframe: null,
+    start: '',
+    end: '',
+    min: 0,
+    max: 100,
     timeframeSelections: [],
-    locationSelections: [], // Initialize location selections
+    locationSelections: [],
     roadMileMarkerRanges: {},
-    // Initialize new dataset structure
     selectedDatasets: [],
+    activeDataset: null,
     attributeFilters: {},
-  }), [filters.length])
+  }), [filters.length]);  // Initialize new dataset structure
   
   // Initialize with one empty filter
   useEffect(() => {
     if (filters.length === 0) {
-      const newFilter = createEmptyFilter()
+      const newFilter = createNewFilter()
       setFilters([newFilter])
       setActiveFilterId(newFilter.id)
     }
-  }, [filters.length, createEmptyFilter])
+  }, [filters.length, createNewFilter])
 
+  // Function to toggle event type filter selection
+  const toggleEventTypeFilter = (filterId: string, datasetName: string, attributeName: string, value: string) => {    
+    console.log(`Toggle filter: ${datasetName}.${attributeName} = ${value}`);
+    
+    // First get the current filter state
+    const currentFilter = filters.find(f => f.id === filterId);
+    if (!currentFilter) return;
+    
+    // Check if the value is already in the filter
+    const currentValues = currentFilter.attributeFilters?.[datasetName]?.[attributeName] || [];
+    const valueIndex = currentValues.indexOf(value);
+    const isAdding = valueIndex === -1;
+    
+    // Create the updated filter state
+    setFilters(prevFilters => {
+      const updatedFilters = prevFilters.map(filter => {
+        if (filter.id === filterId) {
+          // Create a deep copy of the filter with a new reference
+          const updatedFilter = {
+            ...filter,
+            attributeFilters: { ...filter.attributeFilters }
+          };
+          
+          // Initialize the dataset's attribute filters if they don't exist
+          if (!updatedFilter.attributeFilters[datasetName]) {
+            updatedFilter.attributeFilters[datasetName] = {};
+          } else {
+            // Create a new reference for this dataset's filters
+            updatedFilter.attributeFilters[datasetName] = { ...updatedFilter.attributeFilters[datasetName] };
+          }
+          
+          // Initialize the attribute array if it doesn't exist
+          if (!updatedFilter.attributeFilters[datasetName][attributeName]) {
+            updatedFilter.attributeFilters[datasetName][attributeName] = [];
+          } else {
+            // Create a new array reference
+            updatedFilter.attributeFilters[datasetName][attributeName] = [...updatedFilter.attributeFilters[datasetName][attributeName]];
+          }
+          
+          // Toggle the value
+          if (isAdding) {
+            // Add the value if it's not already selected
+            updatedFilter.attributeFilters[datasetName][attributeName].push(value);
+            console.log(`Added ${value} to ${attributeName} filters`);
+          } else {
+            // Remove the value if it's already selected
+            updatedFilter.attributeFilters[datasetName][attributeName].splice(valueIndex, 1);
+            console.log(`Removed ${value} from ${attributeName} filters`);
+          }
+          
+          console.log('Updated filter:', updatedFilter.attributeFilters[datasetName][attributeName]);
+          return updatedFilter;
+        }
+        return filter;
+      });
+      
+      return updatedFilters;
+    });
+    
+    // Create a direct update to the filter context to ensure synchronization
+    // This bypasses the React state update cycle and ensures immediate filter application
+    const updatedFilterState = {
+      ...filterState,
+      filters: filterState.filters.map((filter: Filter) => {
+        if (filter.id === filterId) {
+          // Deep clone the filter
+          const updatedFilter = JSON.parse(JSON.stringify(filter)) as Filter;
+          
+          // Make sure the attribute filters structure exists
+          if (!updatedFilter.attributeFilters) updatedFilter.attributeFilters = {};
+          if (!updatedFilter.attributeFilters[datasetName]) updatedFilter.attributeFilters[datasetName] = {};
+          if (!updatedFilter.attributeFilters[datasetName][attributeName]) {
+            updatedFilter.attributeFilters[datasetName][attributeName] = [];
+          }
+          
+          // Apply the change directly
+          if (isAdding) {
+            updatedFilter.attributeFilters[datasetName][attributeName].push(value);
+          } else {
+            const idx = updatedFilter.attributeFilters[datasetName][attributeName].indexOf(value);
+            if (idx !== -1) {
+              updatedFilter.attributeFilters[datasetName][attributeName].splice(idx, 1);
+            }
+          }
+          
+          return updatedFilter;
+        }
+        return filter;
+      })
+    };
+    
+    // Update the filter context immediately
+    setFilterState(updatedFilterState);
+    
+    // Log the updated filter state for debugging
+    console.log('Direct filter state update:', updatedFilterState);
+    
+    // Trigger any callback for filtered data changes
+    if (onFilteredDataChange) {
+      onFilteredDataChange();
+    }
+  };
+  
   // Function to toggle a selector within a filter
   const toggleSelector = (filterId: string, selector: string) => {
     setFilters(prevFilters => {
@@ -188,7 +483,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   
   // Function to add a new filter
   const addNewFilter = () => {
-    const newFilter = createEmptyFilter()
+    const newFilter = createNewFilter()
     setFilters(prevFilters => [...prevFilters, newFilter])
     setActiveFilterId(newFilter.id)
   }
@@ -203,7 +498,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         setActiveFilterId(updatedFilters[0].id)
       } else if (updatedFilters.length === 0) {
         // If no filters left, create a new one
-        const newFilter = createEmptyFilter()
+        const newFilter = createNewFilter()
         setActiveFilterId(newFilter.id)
         return [newFilter]
       }
@@ -357,7 +652,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
     
     // Fall back to the old method if no selections
     const allLocations = [...filter.locations.roads, ...filter.locations.cities, ...filter.locations.districts];
-    if (allLocations.length === 0) return "No locations selected";
+    if (allLocations.length === 0) return "No specific location selected (fetching all)";
     if (allLocations.length <= 3) return `Selected: ${allLocations.join(", ")}`;
     return `Selected: ${allLocations.slice(0, 2).join(", ")} + ${allLocations.length - 2} more`;
   }
@@ -435,11 +730,15 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
             break;
           }
           case "holidays": {
-            const holidays = selection.holidays;
-            if (holidays.length <= 3) {
-              parts.push(`${holidays.slice(0, holidays.length - 1).join(", ")}${holidays.length > 1 ? " and " : ""}${holidays[holidays.length - 1]}`);
+            const holidayIds = selection.holidays;
+            
+            // Convert IDs to friendly names using the imported HOLIDAY_NAMES
+            const holidayFriendlyNames = holidayIds.map(id => HOLIDAY_NAMES[id] || id);
+            
+            if (holidayFriendlyNames.length <= 3) {
+              parts.push(`${holidayFriendlyNames.slice(0, holidayFriendlyNames.length - 1).join(", ")}${holidayFriendlyNames.length > 1 ? " and " : ""}${holidayFriendlyNames[holidayFriendlyNames.length - 1]}`);
             } else {
-              parts.push(`${holidays.length} selected holidays`);
+              parts.push(`${holidayFriendlyNames.length} selected holidays`);
             }
             break;
           }
@@ -542,7 +841,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   }
   
   // State to store query results for map visualization
-  const [queryResults, setQueryResults] = useState<any>(null);
+  // queryResults is now managed through context
   
   // Execute query against the API based on active filters
   const executeFilterQuery = async () => {
@@ -663,9 +962,45 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
         
         // Find date range selections
         const dateRangeSelection = activeFilter.timeframeSelections.find(s => s.type === 'dateRange');
-        if (dateRangeSelection && dateRangeSelection.range) {
+        if (dateRangeSelection && dateRangeSelection.type === 'dateRange' && dateRangeSelection.range) {
           timeFilter.startDate = format(dateRangeSelection.range.start, 'yyyy-MM-dd');
           timeFilter.endDate = format(dateRangeSelection.range.end, 'yyyy-MM-dd');
+        }
+        
+        // Find weekday selections
+        const weekdaysSelection = activeFilter.timeframeSelections.find(s => s.type === 'weekdays');
+        if (weekdaysSelection && weekdaysSelection.type === 'weekdays' && weekdaysSelection.weekdays.length > 0) {
+          timeFilter.weekdays = weekdaysSelection.weekdays;
+          console.log('Added weekdays to time filter:', timeFilter.weekdays);
+        }
+        
+        // Find hours selections
+        const hoursSelection = activeFilter.timeframeSelections.find(s => s.type === 'hours');
+        if (hoursSelection && hoursSelection.type === 'hours' && hoursSelection.hours.length > 0) {
+          // Convert number[] to string[] for consistency with the TimeFilter interface
+          timeFilter.hours = hoursSelection.hours.map(h => h.toString());
+          console.log('Added hours to time filter:', timeFilter.hours);
+        }
+        
+        // Find month days selections
+        const monthDaysSelection = activeFilter.timeframeSelections.find(s => s.type === 'monthDays');
+        if (monthDaysSelection && monthDaysSelection.type === 'monthDays' && monthDaysSelection.monthDays.length > 0) {
+          timeFilter.monthDays = monthDaysSelection.monthDays;
+          console.log('Added month days to time filter:', timeFilter.monthDays);
+        }
+        
+        // Find holiday selections
+        const holidaysSelection = activeFilter.timeframeSelections.find(s => s.type === 'holidays');
+        if (holidaysSelection && holidaysSelection.type === 'holidays' && holidaysSelection.holidays.length > 0) {
+          timeFilter.holidays = holidaysSelection.holidays;
+          console.log('Added holidays to time filter:', timeFilter.holidays);
+        }
+        
+        // Find granularity selection
+        const granularitySelection = activeFilter.timeframeSelections.find(s => s.type === 'granularity');
+        if (granularitySelection && granularitySelection.type === 'granularity') {
+          timeFilter.granularity = granularitySelection.granularity;
+          console.log('Added granularity to time filter:', timeFilter.granularity);
         }
       }
       
@@ -733,7 +1068,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       }
       
       // Store the results for map visualization
-      setQueryResults(results);
+      setContextQueryResults(results);
       
       // Update filtered count and prepare results summary
       let totalResults = 0;
@@ -814,6 +1149,19 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       // Dispatch a custom event to notify the map view of new data
       const mapDataEvent = new CustomEvent('map-data-updated', { detail: results });
       window.dispatchEvent(mapDataEvent);
+      
+      // Collapse the filter panel after requesting data
+      setFilters(prevFilters => {
+        return prevFilters.map(filter => {
+          if (filter.id === activeFilterId) {
+            return {
+              ...filter,
+              isOpen: false
+            };
+          }
+          return filter;
+        });
+      });
     } catch (err: any) {
       console.error('Error executing query:', err);
       setError(`Failed to execute query: ${err.message}`);
@@ -825,76 +1173,125 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
   return (
 <div className="h-full flex flex-col p-4 overflow-y-auto">
     <div className="mb-4">
-      <h2 className="text-xl font-bold mb-2">Data Filters</h2>
 
       <div className="flex items-center space-x-2">
-      <div className="relative group">
-        <Button
-          onClick={addNewFilter}
-          variant="outline"
-          className="flex items-center"
-          disabled
-        >
-          + Add Filter
-        </Button>
-        <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
-            Backend Fixes Required
-          </span>
-        </div>
 
         <div className="relative group">
-  
-          <Button
-            variant="outline"
-            className="flex items-center opacity-50 cursor-not-allowed"
-            disabled
-          >
-            Save Filter
-          </Button>
-          <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
-            Not functional
-          </span>
-        </div>
-
-        <div className="relative group">
-          <Button
-            variant="outline"
-            className="flex items-center opacity-50 cursor-not-allowed"
-            disabled
-          >
-            Load Filter
-          </Button>
-          <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
-            Not functional
+          <div className="relative">
+            <Button
+              onClick={() => {
+                // Toggle dropdown visibility
+                const dropdown = document.getElementById('savedRequestsDropdown');
+                if (dropdown) {
+                  dropdown.classList.toggle('hidden');
+                }
+              }}
+              variant="outline"
+              className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-gray-800 border rounded-md hover:bg-gray-50 transition-colors"
+            >
+              Load Request
+              <ChevronDown className="h-4 w-4 ml-1" />
+            </Button>
+            <div id="savedRequestsDropdown" className="absolute z-50 hidden mt-1 w-72 bg-white border rounded-md shadow-lg">
+              <div className="p-2">
+                {/* Search input */}
+                <div className="relative mb-2">
+                  <input
+                    type="text"
+                    placeholder="Search requests..."
+                    className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={requestSearchTerm}
+                    onChange={(e) => setRequestSearchTerm(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {requestSearchTerm && (
+                    <button 
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRequestSearchTerm("");
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                
+                {/* Request list */}
+                <div className="max-h-60 overflow-y-auto">
+                  {savedRequests
+                    .filter(request => request.toLowerCase().includes(requestSearchTerm.toLowerCase()))
+                    .map((request, index) => (
+                      <button
+                        key={index}
+                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                        onClick={() => {
+                          // Load the saved request
+                          document.getElementById('savedRequestsDropdown')?.classList.add('hidden');
+                          addNewFilter();
+                        }}
+                      >
+                        {request}
+                      </button>
+                    ))}
+                  
+                  {/* No results message */}
+                  {requestSearchTerm && savedRequests.filter(request => 
+                    request.toLowerCase().includes(requestSearchTerm.toLowerCase())
+                  ).length === 0 && (
+                    <div className="px-3 py-2 text-sm text-gray-500 italic">
+                      No matching requests found
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-yellow-600 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">
+            In Progress
           </span>
         </div>
 
       </div>
     </div>
 
-      <div className="space-y-4 border-2 border-blue-200 rounded-lg p-4 pb-2">
+      {/* <div className="space-y-4 border-2 border-gray-200 rounded-lg p-3 pb-2"> */}
         {filters.map((filter) => (
-          <Card key={filter.id} className={`mb-4 ${filter.active ? 'border-green-500' : 'border-gray-200'} ${activeFilterId === filter.id ? 'shadow-md' : ''}`}>
-            <CardHeader className="p-3">
+          <Card key={filter.id} className={`mb-3 ${filter.active ? 'border-gray-300' : 'border-gray-200'} ${activeFilterId === filter.id ? 'shadow-sm' : ''}`}>
+            <CardHeader className="p-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="p-0 h-8 w-8"
+                    className="p-0 h-7 w-7"
                     onClick={() => toggleFilterExpanded(filter.id)}
                   >
-                    {filter.isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    {filter.isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                   
                   <div className="flex items-center">
                     {activeFilterId === filter.id ? (
-                      <input
-                        className="h-8 px-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={filter.name}
-                        onChange={(e) => renameFilter(filter.id, e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      <div className="flex items-center justify-between w-full">
+                        <h3 className="text-base font-semibold">Start New Request</h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-2 px-2 py-1 flex items-center gap-1 text-xs text-black hover:bg-gray-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const name = prompt('Enter a name for this request:');
+                            if (name) {
+                              renameFilter(filter.id, name);
+                              // Save the request logic would go here
+                              alert('Request saved as: ' + name);
+                            }
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-save"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                          Save
+                        </Button>
+                      </div>
                     ) : (
                       <CardTitle 
                         className="text-lg cursor-pointer" 
@@ -903,231 +1300,218 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                         {filter.name}
                       </CardTitle>
                     )}
-                    
-                    <div className="ml-2 inline-flex items-center gap-2">
-                      <Switch
-                        checked={filter.active}
-                        onCheckedChange={() => toggleFilterActive(filter.id)}
-                        className={`${filter.active ? 'bg-green-500' : 'bg-gray-300'} h-5 w-9`}
-                      />
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-                        {filter.active ? (
-                          <span className="text-green-800 bg-green-100 px-2 py-0.5 rounded-full">Active</span>
-                        ) : (
-                          <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">Inactive</span>
-                        )}
-                      </span>
-                    </div>
+
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-1">
-                  
-                  {/* <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className={`p-1 h-8 w-8 ${activeFilterId === filter.id ? 'text-blue-500' : ''}`}
-                    onClick={() => setActiveFilterId(filter.id)}
-                    title="Edit this filter"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                  </Button> */}
-                  
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="p-1 h-8 w-8 text-red-500 hover:bg-red-50"
-                    onClick={() => confirmDeleteFilter(filter.id)}
-                    title="Remove filter"
-                    disabled={filters.length === 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 </div>
               </div>
               
               {!filter.isOpen && (
-                <div className="mt-2 text-sm text-muted-foreground grid grid-cols-1 gap-1">
-                  <div className="flex items-start">
-                    <MapPin className="h-4 w-4 mr-1 mt-0.5" />
-                    <span><strong>Locations:</strong> {getLocationOverview(filter)}</span>
-                  </div>
-                  <div className="flex items-start">
-                    <Calendar className="h-4 w-4 mr-1 mt-0.5" />
-                    <span><strong>Timeframe:</strong> {getTimeframeOverview(filter)}</span>
-                  </div>
-                  <div className="flex items-start">
-                    <Database className="h-4 w-4 mr-1 mt-0.5" />
-                    <span><strong>Datasets:</strong> {getDatasetOverview(filter)}</span>
-                  </div>
+                <div className="px-4 pb-4 ">
+                {/* Summary text above tabs */}
+                <div className="mb-3">
+                  {(() => {
+                    if (!filter.selectedDatasets || filter.selectedDatasets.length === 0) {
+                      return (
+                        <p className="text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                          Please select a dataset to get started.
+                        </p>
+                      );
+                    }
+                    
+                    // Get the start and end dates from the filter
+                    // Default to today and one week ago if not set
+                    const today = new Date();
+                    const oneWeekAgo = new Date();
+                    oneWeekAgo.setDate(today.getDate() - 7);
+                    
+                    const startDate = filter.timeframe?.start ? new Date(filter.timeframe.start).toLocaleDateString() : oneWeekAgo.toLocaleDateString();
+                    const endDate = filter.timeframe?.end ? new Date(filter.timeframe.end).toLocaleDateString() : today.toLocaleDateString();
+                    
+                    // Determine location dimension
+                    let locationText = 'in all locations';
+                    
+                    // Create arrays to hold the different location parts
+                    const locationParts = [];
+                    
+                    // Check for each type of location and add to the appropriate array
+                    if (filter.locations.roads && filter.locations.roads.length > 0) {
+                      locationParts.push(`on ${filter.locations.roads.join(', ')}`);
+                    }
+                    
+                    if (filter.locations.cities && filter.locations.cities.length > 0) {
+                      locationParts.push(`in ${filter.locations.cities.join(', ')}`);
+                    }
+                    
+                    if (filter.locations.districts && filter.locations.districts.length > 0) {
+                      locationParts.push(`in ${filter.locations.districts.join(', ')}`);
+                    }
+                    
+                    if (filter.locations.pointsOfInterest && filter.locations.pointsOfInterest.length > 0) {
+                      locationParts.push(`at ${filter.locations.pointsOfInterest.join(', ')}`);
+                    }
+                    
+                    // Combine all location parts if there are any
+                    if (locationParts.length > 0) {
+                      locationText = locationParts.join(' and ');
+                    }
+                    
+                    // Get dataset names using the metadata mapping for proper display names
+                    let datasetText = '';
+                    
+                    if (filter.selectedDatasets.length === 1) {
+                      // Single dataset
+                      datasetText = datasetMetadata[filter.selectedDatasets[0]] || filter.selectedDatasets[0];
+                    } else if (filter.selectedDatasets.length === 2) {
+                      // Two datasets - show correlation between them
+                      const dataset1 = datasetMetadata[filter.selectedDatasets[0]] || filter.selectedDatasets[0];
+                      const dataset2 = datasetMetadata[filter.selectedDatasets[1]] || filter.selectedDatasets[1];
+                      datasetText = `correlation between ${dataset1} and ${dataset2}`;
+                    } else if (filter.selectedDatasets.length > 2) {
+                      // Multiple datasets - show all by name
+                      const datasetNames = filter.selectedDatasets.map(ds => datasetMetadata[ds] || ds);
+                      datasetText = datasetNames.join(', ');
+                    } else {
+                      // No datasets selected
+                      datasetText = 'no datasets';
+                    }
+                    
+                    return (
+                      <p className="bg-blue-50 px-2 py-1 rounded">
+                        Viewing <span className="font-medium">{datasetText}</span> from <span className="font-medium">{startDate}</span> to <span className="font-medium">{endDate}</span>
+                        <span className="font-medium"> {locationText}</span>
+                      </p>
+                    );
+                  })()}
+                </div>
+
                 </div>
               )}
             </CardHeader>
             
             {filter.isOpen && (
-              <div className="px-4 pb-4">
-                {/* Location Selector */}
-                <Card className="mb-4 border shadow-sm">
-                  <CardHeader className="p-3 cursor-pointer" onClick={() => toggleSelector(filter.id, 'location')}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-5 w-5" />
-                        <CardTitle className="text-base">Select Location</CardTitle>
-                      </div>
-                      {filter.openSelector === 'location' ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              <div className="px-4">
+                {/* Summary text above tabs */}
+                <div className="mb-3">
+                  {(() => {
+                    if (!filter.selectedDatasets || filter.selectedDatasets.length === 0) {
+                      return (
+                        <p className="text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                          Please select a dataset to get started.
+                        </p>
+                      );
+                    }
+                    
+                    // Get the start and end dates from the filter
+                    // Default to today and one week ago if not set
+                    const today = new Date();
+                    const oneWeekAgo = new Date();
+                    oneWeekAgo.setDate(today.getDate() - 7);
+                    
+                    const startDate = filter.timeframe?.start ? new Date(filter.timeframe.start).toLocaleDateString() : oneWeekAgo.toLocaleDateString();
+                    const endDate = filter.timeframe?.end ? new Date(filter.timeframe.end).toLocaleDateString() : today.toLocaleDateString();
+                    
+                    // Determine location dimension
+                    let locationText = 'in all locations';
+                    
+                    // Create arrays to hold the different location parts
+                    const locationParts = [];
+                    
+                    // Check for each type of location and add to the appropriate array
+                    if (filter.locations.roads && filter.locations.roads.length > 0) {
+                      locationParts.push(`on ${filter.locations.roads.join(', ')}`);
+                    }
+                    
+                    if (filter.locations.cities && filter.locations.cities.length > 0) {
+                      locationParts.push(`in ${filter.locations.cities.join(', ')}`);
+                    }
+                    
+                    if (filter.locations.districts && filter.locations.districts.length > 0) {
+                      locationParts.push(`in ${filter.locations.districts.join(', ')}`);
+                    }
+                    
+                    if (filter.locations.pointsOfInterest && filter.locations.pointsOfInterest.length > 0) {
+                      locationParts.push(`at ${filter.locations.pointsOfInterest.join(', ')}`);
+                    }
+                    
+                    // Combine all location parts if there are any
+                    if (locationParts.length > 0) {
+                      locationText = locationParts.join(' and ');
+                    }
+                    
+                    // Get dataset names using the metadata mapping for proper display names
+                    let datasetText = '';
+                    
+                    if (filter.selectedDatasets.length === 1) {
+                      // Single dataset
+                      datasetText = datasetMetadata[filter.selectedDatasets[0]] || filter.selectedDatasets[0];
+                    } else if (filter.selectedDatasets.length === 2) {
+                      // Two datasets - show correlation between them
+                      const dataset1 = datasetMetadata[filter.selectedDatasets[0]] || filter.selectedDatasets[0];
+                      const dataset2 = datasetMetadata[filter.selectedDatasets[1]] || filter.selectedDatasets[1];
+                      datasetText = `correlation between ${dataset1} and ${dataset2}`;
+                    } else if (filter.selectedDatasets.length > 2) {
+                      // Multiple datasets - show all by name
+                      const datasetNames = filter.selectedDatasets.map(ds => datasetMetadata[ds] || ds);
+                      datasetText = datasetNames.join(', ');
+                    } else {
+                      // No datasets selected
+                      datasetText = 'no datasets';
+                    }
+                    
+                    return (
+                      <p className="bg-blue-50 px-2 py-1 rounded">
+                        Viewing <span className="font-medium">{datasetText}</span> from <span className="font-medium">{startDate}</span> to <span className="font-medium">{endDate}</span>
+                        <span className="font-medium"> {locationText}</span>
+                      </p>
+                    );
+                  })()}
+                </div>
+                {/* Horizontal Tabs for Filters */}
+                <div className="w-full">
+                  {/* Tab Navigation */}
+                  <div className="flex justify-between border-b mb-4 w-full">
+                    <div 
+                      className={`flex items-center justify-center gap-2 px-4 py-3 cursor-pointer flex-1 ${filter.openSelector === 'dataset' ? 'border-b-2 border-black text-black font-bold' : 'text-gray-600'}`}
+                      onClick={() => toggleSelector(filter.id, 'dataset')}
+                    >
+                      <Database className="h-5 w-5" />
+                      <span className="text-sm font-bold">Datasets</span>
                     </div>
-                    {filter.openSelector !== 'location' && (
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        {getLocationOverview(filter)}
-                      </div>
-                    )}
-                  </CardHeader>
-                  {filter.openSelector === 'location' && (
-                    <CardContent>
-                      <LocationSelector
-                        selectedRoads={filter.locations.roads}
-                        onSelectedRoadsChange={(roads) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, locations: {...f.locations, roads}} : f
-                          ));
-                        }}
-                        selectedLocations={filter.locations.cities}
-                        onSelectedLocationsChange={(cities) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, locations: {...f.locations, cities}} : f
-                          ));
-                        }}
-                        selectedDistricts={filter.locations.districts}
-                        onSelectedDistrictsChange={(districts) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, locations: {...f.locations, districts}} : f
-                          ));
-                        }}
-                        roadMileMarkerRanges={filter.roadMileMarkerRanges || {}}
-                        onRoadMileMarkerRangesChange={(ranges) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, roadMileMarkerRanges: ranges} : f
-                          ));
-                        }}
-                        selectedPointsOfInterest={filter.locations.pointsOfInterest || []}
-                        onSelectedPointsOfInterestChange={(pointsOfInterest) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, locations: {...f.locations, pointsOfInterest}} : f
-                          ));
-                        }}
-                        selections={filter.locationSelections || []}
-                        onSelectionsChange={(selections) => {
-                          // Ensure all selections have the required operator property
-                          const validSelections = selections.map(selection => ({
-                            ...selection,
-                            operator: selection.operator || "AND" // Default to AND if not provided
-                          }));
-                          
-                          // Use a type assertion to ensure TypeScript understands this is a valid Filter
-                          setFilters(prevFilters => prevFilters.map(f => {
-                            if (f.id === filter.id) {
-                              // Create a properly typed filter with the validated selections
-                              const updatedFilter: Filter = {
-                                ...f,
-                                locationSelections: validSelections
-                              };
-                              return updatedFilter;
-                            }
-                            return f;
-                          }));
-                        }}
-                      />
-                    </CardContent>
-                  )}
-                </Card>
-
-                {/* Timeframe Selector */}
-                <Card className="mb-4 border shadow-sm">
-                  <CardHeader className="p-3 cursor-pointer" onClick={() => toggleSelector(filter.id, 'timeframe')}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-5 w-5" />
-                        <CardTitle className="text-base">Select Timeframe</CardTitle>
-                      </div>
-                      {filter.openSelector === 'timeframe' ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    <div 
+                      className={`flex items-center justify-center gap-2 px-4 py-3 cursor-pointer flex-1 ${filter.openSelector === 'timeframe' ? 'border-b-2 border-black text-black font-bold' : 'text-gray-600'}`}
+                      onClick={() => toggleSelector(filter.id, 'timeframe')}
+                    >
+                      <Calendar className="h-5 w-5" />
+                      <span className="text-sm font-bold">Time</span>
                     </div>
-                    {filter.openSelector !== 'timeframe' && (
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        {getTimeframeOverview(filter)}
-                      </div>
-                    )}
-                  </CardHeader>
-                  {filter.openSelector === 'timeframe' && (
-                    <CardContent>
-                      <TimelineSelector
-                        selections={filter.timeframeSelections || []}
-                        onSelectionsChange={(selections: TimeframeSelection[]) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, timeframeSelections: selections} : f
-                          ));
-                          
-                          // Update the legacy timeframe format if there's a date range selection
-                          // This ensures backward compatibility
-                          const dateRangeSelection = selections.find((s: TimeframeSelection) => s.type === "dateRange");
-                          if (dateRangeSelection && dateRangeSelection.type === "dateRange") {
-                            const { start, end } = dateRangeSelection.range;
-                            setFilters(prevFilters => prevFilters.map(f => 
-                              f.id === filter.id ? {
-                                ...f, 
-                                timeframe: { 
-                                  start: start.toISOString(), 
-                                  end: end.toISOString() 
-                                }
-                              } : f
-                            ));
-                          } else if (selections.length === 0) {
-                            // Clear timeframe if no selections
-                            setFilters(prevFilters => prevFilters.map(f => 
-                              f.id === filter.id ? {...f, timeframe: null} : f
-                            ));
-                          }
-                        }}
-                        getSummaryRef={timeframeSummaryRef}
-                      />
-                    </CardContent>
-                  )}
-                </Card>
-
-                {/* Dataset Selector */}
-                <Card className="mb-4 border shadow-sm">
-                  <CardHeader className="p-3 cursor-pointer" onClick={() => toggleSelector(filter.id, 'dataset')}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Database className="h-5 w-5" />
-                        <CardTitle className="text-base">Select Datasets</CardTitle>
-                      </div>
-                      {filter.openSelector === 'dataset' ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    <div 
+                      className={`flex items-center justify-center gap-2 px-4 py-3 cursor-pointer flex-1 ${filter.openSelector === 'location' ? 'border-b-2 border-black text-black font-bold' : 'text-gray-600'}`}
+                      onClick={() => toggleSelector(filter.id, 'location')}
+                    >
+                      <MapPin className="h-5 w-5" />
+                      <span className="text-sm font-bold">Location</span>
                     </div>
-                    {filter.openSelector !== 'dataset' && (
-                      <div className="mt-2 text-sm text-muted-foreground">
-                        {getDatasetOverview(filter)}
-                      </div>
-                    )}
-                  </CardHeader>
-                  {filter.openSelector === 'dataset' && (
-                    <CardContent className="pt-2">
-                      <DynamicDatasetSelector
-                        selectedDatasets={filter.selectedDatasets}
-                        onSelectedDatasetsChange={(datasets) => {
-                          setFilters(prevFilters => prevFilters.map(f => 
-                            f.id === filter.id ? {...f, selectedDatasets: datasets} : f
-                          ));
-                        }}
-                        getSummaryRef={datasetSummaryRef}
-                      />
-                      
-                      {/* Dataset Attribute Filters */}
-                      {filter.selectedDatasets.length > 0 && (
-                        <DatasetAttributeFilters
+                  </div>
+                  
+                  {/* Tab Content */}
+                  <div className="mt-2 pb-3">
+                    {/* Dataset Tab Content */}
+                    {filter.openSelector === 'dataset' && (
+                      <div>
+                        <CauseEffectDatasetSelector
+                          filterId={filter.id}
                           selectedDatasets={filter.selectedDatasets}
-                          selectedFilters={filter.attributeFilters}
+                          onDatasetChange={(newDatasets: string[]) => {
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {...f, selectedDatasets: newDatasets} : f
+                            ));
+                          }}
+                          attributeFilters={filter.attributeFilters}
                           timeframeSelections={filter.timeframeSelections || []}
-                          onFilterChange={(datasetId, attributeName, values) => {
+                          onFilterChange={(datasetId: string, attributeName: string, values: string[]) => {
                             setFilters(prevFilters => prevFilters.map(f => {
                               if (f.id === filter.id) {
                                 const updatedAttributeFilters = { ...f.attributeFilters };
@@ -1140,70 +1524,136 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                               return f;
                             }));
                           }}
-                          onSelectedDatasetsChange={(datasets) => {
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Timeframe Tab Content */}
+                    {filter.openSelector === 'timeframe' && (
+                      <div>
+                        <TimelineSelector
+                          selections={filter.timeframeSelections || []}
+                          onSelectionsChange={(selections: TimeframeSelection[]) => {
                             setFilters(prevFilters => prevFilters.map(f => 
-                              f.id === filter.id ? {...f, selectedDatasets: datasets} : f
+                              f.id === filter.id ? {...f, timeframeSelections: selections} : f
+                            ));
+                            
+                            // Update the legacy timeframe format if there's a date range selection
+                            // This ensures backward compatibility
+                            const dateRangeSelection = selections.find((s: TimeframeSelection) => s.type === "dateRange");
+                            if (dateRangeSelection && dateRangeSelection.type === "dateRange") {
+                              const { start, end } = dateRangeSelection.range;
+                              setFilters(prevFilters => prevFilters.map(f => 
+                                f.id === filter.id ? {
+                                  ...f, 
+                                  timeframe: { 
+                                    start: start.toISOString(), 
+                                    end: end.toISOString() 
+                                  }
+                                } : f
+                              ));
+                            } else if (selections.length === 0) {
+                              // Clear timeframe if no selections
+                              setFilters(prevFilters => prevFilters.map(f => 
+                                f.id === filter.id ? {...f, timeframe: null} : f
+                              ));
+                            }
+                          }}
+                          getSummaryRef={timeframeSummaryRef}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Location Tab Content */}
+                    {filter.openSelector === 'location' && (
+                      <div>
+                        <LocationSelector
+                          selectedRoads={filter.locations.roads}
+                          onSelectedRoadsChange={(roads) => {
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {...f, locations: {...f.locations, roads}} : f
                             ));
                           }}
+                          selectedLocations={filter.locations.cities}
+                          onSelectedLocationsChange={(cities) => {
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {...f, locations: {...f.locations, cities}} : f
+                            ));
+                          }}
+                          selectedDistricts={filter.locations.districts}
+                          onSelectedDistrictsChange={(districts) => {
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {...f, locations: {...f.locations, districts}} : f
+                            ));
+                          }}
+                          roadMileMarkerRanges={filter.roadMileMarkerRanges || {}}
+                          onRoadMileMarkerRangesChange={(ranges) => {
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {...f, roadMileMarkerRanges: ranges} : f
+                            ));
+                          }}
+                          selectedPointsOfInterest={filter.locations.pointsOfInterest || []}
+                          onSelectedPointsOfInterestChange={(pointsOfInterest) => {
+                            setFilters(prevFilters => prevFilters.map(f => 
+                              f.id === filter.id ? {...f, locations: {...f.locations, pointsOfInterest}} : f
+                            ));
+                          }}
+                          selections={filter.locationSelections || []}
+                          onSelectionsChange={(selections) => {
+                            // Ensure all selections have the required operator property
+                            const validSelections = selections.map(selection => ({
+                              ...selection,
+                              operator: selection.operator || "AND" // Default to AND if not provided
+                            }));
+                            
+                            // Use a type assertion to ensure TypeScript understands this is a valid Filter
+                            setFilters(prevFilters => prevFilters.map(f => {
+                              if (f.id === filter.id) {
+                                // Create a properly typed filter with the validated selections
+                                const updatedFilter: Filter = {
+                                  ...f,
+                                  locationSelections: validSelections
+                                };
+                                return updatedFilter;
+                              }
+                              return f;
+                            }));
+                          }}
                         />
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
+                <div className="flex justify-center pb-2">
+                  <Button 
+                  className="w-1/3 bg-gray-700" 
+                  onClick={executeFilterQuery} 
+                  disabled={isLoading || !activeFilterId}
+                  variant="default"
+                >
+                  {isLoading ? (
+                    <>
+                      <Spinner className="mr-2 h-4 w-4" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      {/* <FilterIcon className="mr-2 h-4 w-4" /> */}
+                      Request Data
+                    </>
+                  )}
+                </Button>
+              </div>
               </div>
             )}
           </Card>
         ))}
-        
-        {/* Apply Filters Button - Moved inside the filters container */}
-        <div className="flex gap-2 mt-4">
-          <Button 
-            className="flex-1" 
-            onClick={executeFilterQuery} 
-            disabled={isLoading || !activeFilterId}
-            variant="default"
-          >
-            {isLoading ? (
-              <>
-                <Spinner className="mr-2 h-4 w-4" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <FilterIcon className="mr-2 h-4 w-4" />
-                Apply Filters
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Delete Filter Confirmation Dialog */}
-      <AlertDialog open={filterToDelete !== null} onOpenChange={(open) => !open && setFilterToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this filter?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the filter.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => filterToDelete && removeFilter(filterToDelete)}
-              className="bg-red-500 hover:bg-red-600 text-white"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* </div> */}
       
-      {/* Apply Filters button moved up inside the filters container */}
       
       {/* Results Summary Card */}
-      {queryResults && (
+      {contextQueryResults && (
         <motion.div 
           ref={resultsRef}
           initial={{ y: 0 }}
@@ -1231,15 +1681,44 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
             onOpenChange={setIsResultsOpen}
             className="w-full border rounded-md overflow-hidden"
           >
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center space-x-2">
-              <BarChart className="h-4 w-4 text-blue-500" />
-              <h4 className="text-sm font-medium">
-                {resultsSummary.total} Results Found
+          <div className="flex items-center justify-between p-2 border-b">
+            <div className="flex items-center">
+              <h4 className="text-base font-medium">
+                Search Results Summary <span className="text-sm font-normal truncate max-w-[90%] inline-block">
+                  (Total: {resultsSummary?.total || 0}, Datasets: {Object.keys(resultsSummary?.byDataset || {}).length}, 
+                  Time: {(() => {
+                    const filter = filters.find(f => f.id === activeFilterId);
+                    if (!filter) return "";
+                    
+                    const startDate = filter.timeframe?.start 
+                      ? new Date(filter.timeframe.start).toLocaleDateString() 
+                      : new Date(new Date().setDate(new Date().getDate() - 7)).toLocaleDateString();
+                    const endDate = filter.timeframe?.end 
+                      ? new Date(filter.timeframe.end).toLocaleDateString() 
+                      : new Date().toLocaleDateString();
+                    
+                    return `${startDate} - ${endDate}`;
+                  })()}, 
+                  Locations: {(() => {
+                    const filter = filters.find(f => f.id === activeFilterId);
+                    if (!filter) return "All";
+                    
+                    let locationText = 'All';
+                    if (filter.roads && filter.roads.length > 0) {
+                      locationText = filter.roads.length > 1 ? `${filter.roads.length} roads` : filter.roads[0];
+                    } else if (filter.cities && filter.cities.length > 0) {
+                      locationText = filter.cities.length > 1 ? `${filter.cities.length} cities` : filter.cities[0];
+                    } else if (filter.districts && filter.districts.length > 0) {
+                      locationText = filter.districts.length > 1 ? `${filter.districts.length} districts` : filter.districts[0];
+                    }
+                    
+                    return locationText;
+                  })()})
+                </span>
               </h4>
             </div>
             <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="p-1 h-6 w-6">
+              <Button variant="ghost" size="sm" className="p-0 h-6 w-6">
                 {isResultsOpen ? (
                   <ChevronUp className="h-4 w-4" />
                 ) : (
@@ -1249,79 +1728,69 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
             </CollapsibleTrigger>
           </div>
           
-          <CollapsibleContent className="px-4 pb-4">
-            {/* Note about results vs markers */}
-            {/* <div className="mb-3 p-2 bg-blue-50 rounded-md text-xs text-blue-700 flex items-start space-x-2">
-              <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>Not all results may appear as markers on the map if they lack valid coordinates.</span>
-            </div> */}
+          <CollapsibleContent className="px-2 pb-2">
+            {/* Quick Insights */}
+            {/* {resultsSummary.total > 0 && (
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="p-2 bg-gray-50 rounded-md">
+                  <div className="text-xs text-gray-500">Total Results</div>
+                  <div className="text-lg font-bold">{resultsSummary.total}</div>
+                </div>
+                <div className="p-2 bg-gray-50 rounded-md">
+                  <div className="text-xs text-gray-500">Datasets</div>
+                  <div className="text-lg font-bold">{Object.keys(resultsSummary.byDataset).length}</div>
+                </div>
+              </div>
+            )} */}
             
             {/* Results Summary */}
-            <div className="space-y-4">
-              {/* Dataset Breakdown */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase text-gray-500">Dataset Breakdown</h4>
-                <div className="space-y-2 pl-1">
-                  {Object.entries(resultsSummary.byDataset).map(([datasetName, count]) => {
-                    // Get a display name for the dataset
-                    const displayName = (() => {
-                      switch(datasetName) {
-                        case 'traffic_events': return 'Traffic Events';
-                        case 'lane_blockage_info': return 'Lane Blockages';
-                        case 'rest_area_info': return 'Rest Areas';
-                        case 'dynamic_message_sign_info': return 'Dynamic Message Signs';
-                        case 'traffic_parking_info': return 'Truck Parking';
-                        case 'travel_time_system_info': return 'Travel Time Signs';
-                        case 'variable_speed_limit_sign_info': return 'Variable Speed Limit Signs';
-                        case 'social_events': return 'Social Events';
-                        case 'weather_info': return 'Weather Information';
-                        default: return datasetName;
-                      }
-                    })();
-                    
-                    // Calculate percentage of total
-                    const percentage = Math.round((count / resultsSummary.total) * 100);
-                    
-                    return (
-                      <div key={datasetName} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">{displayName}</span>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm font-medium">{count}</span>
-                            <span className="text-xs text-gray-500">({percentage}%)</span>
-                          </div>
-                        </div>
-                        {/* Progress bar */}
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div 
-                            className="bg-blue-600 h-1.5 rounded-full" 
-                            style={{ width: `${percentage}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+            <div className="space-y-0">
+              {/* Dataset Results */}
+              <div>
+                {Object.entries(resultsSummary.byDataset).map(([datasetName, count]) => {
+                  // Get a display name for the dataset
+                  const displayName = (() => {
+                    switch(datasetName) {
+                      case 'traffic_events': return 'Traffic Events';
+                      case 'lane_blockage_info': return 'Lane Blockages';
+                      case 'rest_area_info': return 'Rest Areas';
+                      case 'dynamic_message_sign_info': return 'Dynamic Message Signs';
+                      case 'traffic_parking_info': return 'Truck Parking';
+                      case 'travel_time_system_info': return 'Travel Time Signs';
+                      case 'variable_speed_limit_sign_info': return 'Variable Speed Limit Signs';
+                      case 'social_events': return 'Social Events';
+                      case 'weather_info': return 'Weather Information';
+                      case 'traffic_speed_info': return 'Traffic Speed';
+                      default: return datasetName;
+                    }
+                  })();
+                  
+                  return (
+                    <div key={datasetName} className="text-sm mb-2">
+                      {/* {count} results found from {displayName} */}
+                    </div>
+                  );
+                })}
               </div>
               
               {/* Dynamic Analytics for Each Dataset */}
               {Object.entries(resultsSummary.byDataset).map(([datasetName, count]) => {
-                if (count === 0 || !queryResults || !queryResults.results) return null;
+                if (count === 0 || !contextQueryResults || !contextQueryResults.results) return null;
                 
-                // Get the actual data for this dataset from queryResults
+                // Get the actual data for this dataset from contextQueryResults
                 let datasetData: any[] = [];
                 
-                if (Array.isArray(queryResults.results)) {
+                if (Array.isArray(contextQueryResults.results)) {
                   // Check each result object in the array for this dataset
-                  queryResults.results.forEach((resultObj: Record<string, any>) => {
+                  contextQueryResults.results.forEach((resultObj: Record<string, any>) => {
                     if (resultObj[datasetName] && Array.isArray(resultObj[datasetName])) {
                       datasetData = [...datasetData, ...resultObj[datasetName]];
                     }
                   });
-                } else if (typeof queryResults.results === 'object' && 
-                           queryResults.results[datasetName] && 
-                           Array.isArray(queryResults.results[datasetName])) {
-                  datasetData = queryResults.results[datasetName];
+                } else if (typeof contextQueryResults.results === 'object' && 
+                           contextQueryResults.results[datasetName] && 
+                           Array.isArray(contextQueryResults.results[datasetName])) {
+                  datasetData = contextQueryResults.results[datasetName];
                 }
                 
                 // Get display name for the dataset
@@ -1336,6 +1805,7 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                     case 'variable_speed_limit_sign_info': return 'Variable Speed Limit Signs';
                     case 'social_events': return 'Social Events';
                     case 'weather_info': return 'Weather Information';
+                    case 'traffic_speed_info': return 'Traffic Speed';
                     default: return datasetName;
                   }
                 })();
@@ -1343,15 +1813,18 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                 // Helper function to get dataset items
                 const getDatasetItems = (dataset: string): any[] => {
                   let items: any[] = [];
-                  if (Array.isArray(queryResults.results)) {
-                    // Format: results is an array
-                    const resultsObj = queryResults.results[0];
-                    if (resultsObj && typeof resultsObj === 'object' && Array.isArray(resultsObj[dataset])) {
-                      items = resultsObj[dataset];
-                    }
-                  } else if (typeof queryResults.results === 'object' && Array.isArray(queryResults.results[dataset])) {
+                  if (Array.isArray(contextQueryResults.results)) {
+                    // Format: results is an array - check all result objects
+                    contextQueryResults.results.forEach((resultObj: Record<string, any>) => {
+                      if (resultObj && typeof resultObj === 'object' && Array.isArray(resultObj[dataset])) {
+                        items = [...items, ...resultObj[dataset]];
+                      }
+                    });
+                  } else if (typeof contextQueryResults.results === 'object') {
                     // Format: results is an object
-                    items = queryResults.results[dataset];
+                    if (Array.isArray(contextQueryResults.results[dataset])) {
+                      items = contextQueryResults.results[dataset];
+                    }
                   }
                   return items;
                 };
@@ -1363,8 +1836,9 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                 // Analyze the first item to determine what fields are available
                 const sampleItem = datasetItems[0] || {};
                 const hasEventType = 'event_type' in sampleItem;
-                const hasPriority = 'priority' in sampleItem;
-                const hasLocation = 'location' in sampleItem || 'city' in sampleItem;
+                const hasSegment = 'event_classification_segment' in sampleItem;
+                const hasPriority = 'priority_level' in sampleItem;
+                const hasLocation = 'location' in sampleItem || 'city' in sampleItem || 'district' in sampleItem || 'route' in sampleItem;
                 
                 // Find all available fields that might be interesting for analytics
                 const availableFields = Object.keys(sampleItem).filter(key => 
@@ -1373,54 +1847,127 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                 );
                 
                 return (
-                  <div key={datasetName} className="space-y-4 border-t pt-3 mt-3">
-                    <h3 className="text-sm font-medium">{displayName} Analytics</h3>
+                  <div key={datasetName} className="space-y-1.5">
+                    <h3 className="text-sm font-medium flex items-center gap-1">
+                      <span>{displayName}</span>
+                      <span className="text-xs bg-blue-100 px-1.5 py-0.5 rounded-full">{count}</span>
+                    </h3>
                     
                     {/* Event Type Analytics - if event_type field exists */}
                     {hasEventType && (
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-semibold uppercase text-gray-500">Event Types</h4>
-                        <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1 ml-3">
+                        <h4 className="text-xs font-medium text-black-700">Event Types</h4>
+                        <div className="grid grid-cols-3 gap-1.5 ml-2">
                           {(() => {
                             // Calculate event type counts
                             const typeCounts: Record<string, number> = {};
                             
-                            datasetItems.forEach(item => {
+                            datasetItems.forEach((item: any) => {
                               const type = item.event_type || 'Unknown';
                               typeCounts[type] = (typeCounts[type] || 0) + 1;
                             });
                             
-                            return Object.entries(typeCounts).map(([type, count]) => (
-                              <div key={type} className="flex justify-between items-center p-2 bg-blue-50 rounded-md">
-                                <span className="text-xs">{type}</span>
-                                <span className="text-xs font-semibold bg-blue-100 px-2 py-0.5 rounded-full">{count}</span>
-                              </div>
-                            ));
+                            // This line is no longer needed as we're getting the current filter directly below
+                            
+                            return Object.entries(typeCounts).map(([type, count]) => {
+                              // Get the current active filter
+                              const currentFilter = filters.find(f => f.id === activeFilterId);
+                              const isSelected = currentFilter?.attributeFilters?.[datasetName]?.['event_type']?.includes(type) || false;
+                              
+                              return (
+                                <button
+                                  key={type}
+                                  onClick={() => {
+                                    if (activeFilterId) {
+                                      toggleEventTypeFilter(activeFilterId, datasetName, 'event_type', type);
+                                    }
+                                  }}
+                                  className={`flex justify-between items-center p-1.5 rounded-md w-full text-left ${isSelected ? 'bg-blue-200 border border-blue-300' : 'bg-gray-50'}`}
+                                >
+                                  <span className="text-xs truncate max-w-[70%]">{type.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}</span>
+                                  <span className="text-xs font-semibold bg-blue-100 px-1.5 py-0.5 rounded-full">{count}</span>
+                                </button>
+                              );
+                            });
+                            
                           })()}
                         </div>
                       </div>
                     )}
                     
                     {/* Priority Analytics - if priority field exists */}
-                    {hasPriority && (
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-semibold uppercase text-gray-500">Priority Levels</h4>
-                        <div className="grid grid-cols-3 gap-2">
+                    {/* {hasPriority && (
+                      <div className="space-y-1 ml-3">
+                        <h4 className="text-xs font-medium text-gray-700">Priority Levels</h4>
+                        <div className="grid grid-cols-3 gap-1.5">
                           {(() => {
                             // Calculate priority counts
                             const priorityCounts: Record<string, number> = {};
                             
-                            datasetItems.forEach(item => {
-                              const priority = item.priority ? `Priority ${item.priority}` : 'Unknown';
-                              priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;
+                            datasetItems.forEach((item: any) => {
+                              const priority_level = item.priority_level ? `Priority ${item.priority_level}` : 'Unknown';
+                              priorityCounts[priority_level] = (priorityCounts[priority_level] || 0) + 1;
                             });
                             
-                            return Object.entries(priorityCounts).map(([priority, count]) => (
-                              <div key={priority} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
-                                <span className="text-xs">{priority}</span>
-                                <span className="text-xs font-semibold bg-blue-100 px-2 py-0.5 rounded-full">{count}</span>
-                              </div>
-                            ));
+                            return Object.entries(priorityCounts).map(([priority_level, count]) => {
+                              // Get the current active filter
+                              const currentFilter = filters.find(f => f.id === activeFilterId);
+                              const isSelected = currentFilter?.attributeFilters?.[datasetName]?.['priority_level']?.includes(priority_level) || false;
+                              
+                              return (
+                                <button
+                                  key={priority_level}
+                                  onClick={() => {
+                                    if (activeFilterId) {
+                                      toggleEventTypeFilter(activeFilterId, datasetName, 'priority_level', priority_level);
+                                    }
+                                  }}
+                                  className={`flex justify-between items-center p-1.5 rounded-md w-full text-left ${isSelected ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}
+                                >
+                                  <span className="text-xs truncate max-w-[70%]">{priority_level}</span>
+                                  <span className="text-xs font-semibold bg-blue-100 px-1.5 py-0.5 rounded-full">{count}</span>
+                                </button>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+                    )} */}
+
+                    {/* Segment Analytics - if segment field exists */}
+                    {hasSegment && (
+                      <div className="space-y-1 ml-3">
+                        <h4 className="text-xs font-medium text-black-700">Segment</h4>
+                        <div className="grid grid-cols-3 gap-1.5 ml-2">
+                          {(() => {
+                            // Calculate segment counts
+                            const segmentCounts: Record<string, number> = {};
+                            
+                            datasetItems.forEach((item: any) => {
+                              const segment = item.event_classification_segment ? `${item.event_classification_segment}` : 'Unknown';
+                              segmentCounts[segment] = (segmentCounts[segment] || 0) + 1;
+                            });
+                            
+                            return Object.entries(segmentCounts).map(([segment, count]) => {
+                              // Get the current active filter
+                              const currentFilter = filters.find(f => f.id === activeFilterId);
+                              const isSelected = currentFilter?.attributeFilters?.[datasetName]?.['event_classification_segment']?.includes(segment) || false;
+                              
+                              return (
+                                <button
+                                  key={segment}
+                                  onClick={() => {
+                                    if (activeFilterId) {
+                                      toggleEventTypeFilter(activeFilterId, datasetName, 'event_classification_segment', segment);
+                                    }
+                                  }}
+                                  className={`flex justify-between items-center p-1.5 rounded-md w-full text-left ${isSelected ? 'bg-blue-200 border border-blue-300' : 'bg-gray-50'}`}
+                                >
+                                  <span className="text-xs truncate max-w-[70%]">{segment}</span>
+                                  <span className="text-xs font-semibold bg-blue-100 px-1.5 py-0.5 rounded-full">{count}</span>
+                                </button>
+                              );
+                            });
                           })()}
                         </div>
                       </div>
@@ -1428,45 +1975,65 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                     
                     {/* Location Analytics - if location or city field exists */}
                     {hasLocation && (
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-semibold uppercase text-gray-500">Top Locations</h4>
-                        <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1 ml-3 pb-2">
+                        <h4 className="text-xs font-medium text-black-700">Locations</h4>
+                        <div className="grid grid-cols-3 gap-1.5 ml-2">
                           {(() => {
                             // Calculate location counts
                             const locationCounts: Record<string, number> = {};
                             
-                            datasetItems.forEach(item => {
-                              const location = item.location || item.city || 'Unknown';
-                              locationCounts[location] = (locationCounts[location] || 0) + 1;
+                            datasetItems.forEach((item: any) => {
+                              // For traffic_events, the district field is capitalized (e.g., "GREENFIELD")
+                              // We need to normalize it for consistent filtering
+                              const location = item.district || item.route || item.city || 'Unknown';
+                              if (location && location !== 'undefined' && location !== 'null') {
+                                locationCounts[location] = (locationCounts[location] || 0) + 1;
+                              }
                             });
                             
-                            // Get top 3 locations
+                            // Get all locations
                             const topLocations = Object.entries(locationCounts)
-                              .sort((a, b) => b[1] - a[1])
-                              .slice(0, 3);
+                              .sort((a, b) => b[1] - a[1]);
                             
-                            return topLocations.map(([location, count]) => (
-                              <div key={location} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
-                                <span className="text-xs">{location}</span>
-                                <span className="text-xs font-semibold bg-blue-100 px-2 py-0.5 rounded-full">{count}</span>
-                              </div>
-                            ));
+                            return topLocations.map(([location, count]) => {
+                              // Get the current active filter
+                              const currentFilter = filters.find(f => f.id === activeFilterId);
+                              // Check if the location is selected, accounting for case differences
+                              const isSelected = currentFilter?.attributeFilters?.[datasetName]?.['location']?.some(
+                                selectedLoc => selectedLoc.toLowerCase() === location.toLowerCase()
+                              ) || false;
+                              
+                              return (
+                                <button
+                                  key={location}
+                                  onClick={() => {
+                                    if (activeFilterId) {
+                                      toggleEventTypeFilter(activeFilterId, datasetName, 'location', location);
+                                    }
+                                  }}
+                                  className={`flex justify-between items-center p-1.5 rounded-md w-full text-left ${isSelected ? 'bg-blue-200 border border-blue-300' : 'bg-gray-50'}`}
+                                >
+                                  <span className="text-xs truncate max-w-[70%]">{location.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}</span>
+                                  <span className="text-xs font-semibold bg-blue-100 px-1.5 py-0.5 rounded-full">{count}</span>
+                                </button>
+                              );
+                            });
                           })()}
                         </div>
                       </div>
                     )}
                     
                     {/* Dynamic Field Analytics - for other interesting fields */}
-                    {availableFields.length > 0 && !hasEventType && !hasPriority && !hasLocation && (
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-semibold uppercase text-gray-500">Key Attributes</h4>
-                        <div className="grid grid-cols-3 gap-2">
+                    {availableFields.length > 0 && !hasEventType && !hasPriority && !hasSegment && !hasLocation && (
+                      <div className="space-y-1 ml-3">
+                        <h4 className="text-xs font-medium text-gray-700">Key Attributes</h4>
+                        <div className="grid grid-cols-3 gap-1.5 ml-2">
                           {(() => {
                             // Pick an interesting field for analytics
                             const interestingField = availableFields[0];
                             const fieldCounts: Record<string, number> = {};
                             
-                            datasetItems.forEach(item => {
+                            datasetItems.forEach((item: any) => {
                               const value = item[interestingField]?.toString() || 'Unknown';
                               fieldCounts[value] = (fieldCounts[value] || 0) + 1;
                             });
@@ -1477,9 +2044,9 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                               .slice(0, 6);
                             
                             return topValues.map(([value, count]) => (
-                              <div key={value} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
-                                <span className="text-xs">{value}</span>
-                                <span className="text-xs font-semibold bg-blue-100 px-2 py-0.5 rounded-full">{count}</span>
+                              <div key={value} className="flex justify-between items-center p-1.5 bg-gray-50 rounded-md">
+                                <span className="text-xs truncate max-w-[70%]">{value}</span>
+                                <span className="text-xs font-semibold bg-blue-100 px-1.5 py-0.5 rounded-full">{count}</span>
                               </div>
                             ));
                           })()}
@@ -1490,32 +2057,15 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                 );
               })}
               
-              {/* Data Insights */}
-              {resultsSummary.total > 0 && (
-                <div className="space-y-2 border-t pt-3">
-                  <h4 className="text-xs font-semibold uppercase text-gray-500">Quick Insights</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-2 bg-gray-50 rounded-md">
-                      <div className="text-xs text-gray-500">Total Results</div>
-                      <div className="text-lg font-bold">{resultsSummary.total}</div>
-                    </div>
-                    <div className="p-2 bg-gray-50 rounded-md">
-                      <div className="text-xs text-gray-500">Datasets</div>
-                      <div className="text-lg font-bold">{Object.keys(resultsSummary.byDataset).length}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
               {resultsSummary.total === 0 && (
-                <div className="flex items-center space-x-2 text-yellow-600 mt-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span className="text-sm">No results found. Try adjusting your filters.</span>
+                <div className="flex items-center space-x-1.5 text-yellow-600 mt-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span className="text-xs">No results found. Try adjusting your filters.</span>
                 </div>
               )}
             </div>
           </CollapsibleContent>
-          </Collapsible>
+        </Collapsible>
         </motion.div>
       )}
     </div>
