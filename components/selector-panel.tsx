@@ -1164,7 +1164,13 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
       });
     } catch (err: any) {
       console.error('Error executing query:', err);
-      setError(`Failed to execute query: ${err.message}`);
+      
+      // Check if it's a 504 Gateway Timeout error
+      if (err.message && (err.message.includes('504 Gateway Time-out') || err.message.includes('status 504'))) {
+        setError('Server timeout: The request is taking longer than expected. Please try again with a smaller time range or fewer filters.');
+      } else {
+        setError(`Failed to execute query: ${err.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -1624,6 +1630,31 @@ export function SelectorPanel({ onFilteredDataChange, onSelectedDatasetsChange }
                     )}
                   </div>
                 </div>
+
+                {/* Error Alert */}
+                {error && (
+                  <div className="mb-4">
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      <AlertTitle className="font-semibold">
+                        {error.includes('timeout') ? 'Server Timeout Error' : 'Error'}
+                      </AlertTitle>
+                      <AlertDescription className="mt-1">
+                        {error}
+                        {error.includes('timeout') && (
+                          <div className="mt-2 text-sm">
+                            <p className="font-medium">Suggestions:</p>
+                            <ul className="list-disc pl-5 mt-1 space-y-1">
+                              <li>Reduce the time range in your query</li>
+                              <li>Select fewer filters or locations</li>
+                              <li>Try a more specific query</li>
+                            </ul>
+                          </div>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
 
                 <div className="flex justify-center pb-2">
                   <Button 
