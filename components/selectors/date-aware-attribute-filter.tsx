@@ -532,43 +532,37 @@ export function DateAwareAttributeFilter({
     <div className="space-y-2 w-full flex-grow">
       
       {/* Search and Select/Deselect All */}
-      <div className="w-full">
-        {/* Always show search if needed, regardless of set size */}
-        {shouldShowSearch && (
-          <div className="flex gap-2 w-full items-center">
-            <div className="relative flex-grow">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Find..."
-                className="pl-8 w-full"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-        
-        <div className="flex gap-2 w-full items-center mt-2">
-          {!isVerySmallSet && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="flex items-center gap-1 text-xs h-8 whitespace-nowrap"
-              onClick={allSelected ? handleDeselectAll : handleSelectAll}
-            >
-              {allSelected ? (
-                <>
-                  <X className="h-3 w-3" /> Deselect All
-                </>
-              ) : (
-                <>
-                  <Check className="h-3 w-3" /> Select All
-                </>
-              )}
-            </Button>
-          )}
-        </div>
+      <div className="flex items-center gap-2 w-full">
+        <div className="relative flex-grow">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Find..."
+            className="pl-8 w-full"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
       </div>
+
+  {!isVerySmallSet && (
+    <Button 
+      variant="outline" 
+      size="sm" 
+      className="flex items-center gap-1 text-xs h-8 whitespace-nowrap"
+      onClick={allSelected ? handleDeselectAll : handleSelectAll}
+    >
+      {allSelected ? (
+        <>
+          <X className="h-3 w-3" /> Deselect All
+        </>
+      ) : (
+        <>
+          <Check className="h-3 w-3" /> Select All
+        </>
+      )}
+    </Button>
+  )}
+</div>
+
       
       {/* Checkbox list */}
       {isLoading ? (
